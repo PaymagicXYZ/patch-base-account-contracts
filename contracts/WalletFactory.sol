@@ -15,6 +15,8 @@ import "./Wallet.sol";
 contract WalletFactory {
     Wallet public immutable accountImplementation;
 
+    event WalletCreated(Wallet indexed accountImplementation);
+
     constructor(IEntryPoint _entryPoint) {
         accountImplementation = new Wallet(_entryPoint);
     }
@@ -42,6 +44,8 @@ contract WalletFactory {
                 )
             )
         );
+
+        emit WalletCreated(ret);
     }
 
     /**
