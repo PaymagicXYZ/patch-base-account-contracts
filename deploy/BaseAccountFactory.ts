@@ -12,13 +12,13 @@ const deployFunction: DeployFunction = async function (
 
   const { deployer } = await getNamedAccounts();
 
-  const wallet = (await deployments.get("Wallet")).address;
+  const wallet = (await deployments.get("BaseAccount")).address;
 
-  const { address } = await deploy("WalletFactory", {
+  const { address } = await deploy("BaseAccountFactory", {
     from: deployer,
     args: [wallet],
     log: true,
-    deterministicDeployment: "0x7061796d61676963",
+    deterministicDeployment: "0x7061796d616769",
   });
 
   try {
@@ -33,5 +33,5 @@ const deployFunction: DeployFunction = async function (
 
 export default deployFunction;
 
-deployFunction.tags = ["WalletFactory"];
-deployFunction.dependencies = ["Wallet"];
+deployFunction.tags = ["BaseAccountFactory"];
+deployFunction.dependencies = ["BaseAccount"];

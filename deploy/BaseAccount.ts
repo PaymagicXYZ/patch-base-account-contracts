@@ -13,11 +13,11 @@ const deployFunction: DeployFunction = async function (
 
   const entryPoint = (await deployments.get("EntryPoint")).address;
 
-  const { address } = await deploy("Wallet", {
+  const { address } = await deploy("BaseAccount", {
     from: deployer,
     args: [entryPoint],
     log: true,
-    deterministicDeployment: "0x7061796d61676963",
+    deterministicDeployment: "0x7061796d616769",
   });
 
   try {
@@ -32,5 +32,5 @@ const deployFunction: DeployFunction = async function (
 
 export default deployFunction;
 
-deployFunction.tags = ["Wallet"];
+deployFunction.tags = ["BaseAccount"];
 deployFunction.dependencies = ["EntryPoint"];
