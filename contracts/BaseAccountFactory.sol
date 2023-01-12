@@ -4,7 +4,7 @@ pragma solidity ^0.8.12;
 import "@openzeppelin/contracts/utils/Create2.sol";
 import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import "./Wallet.sol";
+import "./BaseAccount.sol";
 
 /**
  * A sample factory contract for Wallet
@@ -12,13 +12,13 @@ import "./Wallet.sol";
  * The factory's createAccount returns the target account address even if it is already installed.
  * This way, the entryPoint.getSenderAddress() can be called either before or after the account is created.
  */
-contract WalletFactory {
-    Wallet public immutable accountImplementation;
+contract BaseAccountFactory {
+    BaseAccount public immutable baseAccountImpl;
 
-    event WalletCreated(Wallet indexed accountImplementation);
+    event BaseAccountCreated(BaseAccount indexed baseAccountImpl);
 
     constructor(IEntryPoint _entryPoint) {
-        accountImplementation = new Wallet(_entryPoint);
+        baseAccountImpl = new BaseAccount(_entryPoint);
     }
 
     /**
@@ -29,23 +29,23 @@ contract WalletFactory {
      */
     function createAccount(address owner, uint256 salt)
         public
-        returns (Wallet ret)
+        returns (BaseAccount ret)
     {
         address addr = getAddress(owner, salt);
         uint256 codeSize = addr.code.length;
         if (codeSize > 0) {
-            return Wallet(payable(addr));
+            return BaseAccount(payable(addr));
         }
-        ret = Wallet(
+        ret = BaseAccount(
             payable(
                 new ERC1967Proxy{salt: bytes32(salt)}(
-                    address(accountImplementation),
-                    abi.encodeCall(Wallet.initialize, (owner))
+                    address(baseAccountImpl),
+                    abi.encodeCall(BaseAccount.initialize, (owner))
                 )
             )
         );
 
-        emit WalletCreated(ret);
+        emit BaseAccountCreated(ret);
     }
 
     /**
@@ -63,8 +63,8 @@ contract WalletFactory {
                     abi.encodePacked(
                         type(ERC1967Proxy).creationCode,
                         abi.encode(
-                            address(accountImplementation),
-                            abi.encodeCall(Wallet.initialize, (owner))
+                            address(baseAccountImpl),
+                            abi.encodeCall(BaseAccount.initialize, (owner))
                         )
                     )
                 )

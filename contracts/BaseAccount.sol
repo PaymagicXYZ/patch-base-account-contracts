@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-import "./core/BaseAccount.sol";
+import "./core/BaseAccountCore.sol";
 
 /**
  * minimal account.
@@ -17,7 +17,7 @@ import "./core/BaseAccount.sol";
  *  has execute, eth handling methods
  *  has a single signer that can send requests through the entryPoint.
  */
-contract Wallet is BaseAccount, UUPSUpgradeable, Initializable {
+contract BaseAccount is BaseAccountCore, UUPSUpgradeable, Initializable {
     using ECDSA for bytes32;
 
     //explicit sizes of nonce, to fit a single storage cell with "owner"
@@ -34,7 +34,7 @@ contract Wallet is BaseAccount, UUPSUpgradeable, Initializable {
 
     IEntryPoint private immutable _entryPoint;
 
-    event SimpleAccountInitialized(
+    event BaseAccountInitialized(
         IEntryPoint indexed entryPoint,
         address indexed owner
     );
@@ -51,6 +51,10 @@ contract Wallet is BaseAccount, UUPSUpgradeable, Initializable {
         _;
     }
 
+    function changeOwner(address newOwner) public onlyOwner {
+        owner = newOwner;
+    }
+
     function _onlyOwner() internal view {
         //directly from EOA owner, or through the entryPoint (which gets redirected through execFromEntryPoint)
         require(
@@ -58,6 +62,8 @@ contract Wallet is BaseAccount, UUPSUpgradeable, Initializable {
             "only owner"
         );
     }
+
+    //add changeOwner
 
     /**
      * execute a transaction (called directly from owner, not by entryPoint)
@@ -95,7 +101,7 @@ contract Wallet is BaseAccount, UUPSUpgradeable, Initializable {
 
     function _initialize(address anOwner) internal virtual {
         owner = anOwner;
-        emit SimpleAccountInitialized(_entryPoint, owner);
+        emit BaseAccountInitialized(_entryPoint, owner);
     }
 
     /**

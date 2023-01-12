@@ -2,6 +2,14 @@
   "name": "lensmo-contract",
   "version": "1.0.0",
   "main": "index.js",
+  "scripts": {
+    "goerli:createAccount": "hardhat run scripts/deployWallet.ts --network goerli",
+    "mumbai:createAccount": "hardhat run scripts/deployWallet.ts --network mumbai",
+    "hardhat:deploy": "hardhat --network hardhat deploy",
+    "goerli:deploy": "hardhat --network goerli deploy",
+    "mumbai:deploy": "hardhat --network mumbai deploy",
+    "test": "hardhat test"
+  },
   "license": "MIT",
   "devDependencies": {
     "@ethersproject/abi": "^5.4.7",
