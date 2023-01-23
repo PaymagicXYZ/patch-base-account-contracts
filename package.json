@@ -50,6 +50,7 @@
     "xdeployer": "^1.1.26"
   },
   "dependencies": {
+    "@nomiclabs/hardhat-vyper": "^3.0.2",
     "@openzeppelin/contracts-upgradeable": "4.2.0"
   }
 }
