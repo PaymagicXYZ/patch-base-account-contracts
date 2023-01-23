@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
+import "./interfaces/IERC1271.sol";
 import "./core/BaseAccountCore.sol";
 
 /**
@@ -17,12 +18,20 @@ import "./core/BaseAccountCore.sol";
  *  has execute, eth handling methods
  *  has a single signer that can send requests through the entryPoint.
  */
-contract BaseAccount is BaseAccountCore, UUPSUpgradeable, Initializable {
+contract BaseAccount is
+    BaseAccountCore,
+    UUPSUpgradeable,
+    Initializable,
+    IERC1271
+{
     using ECDSA for bytes32;
 
     //explicit sizes of nonce, to fit a single storage cell with "owner"
     uint96 private _nonce;
     address public owner;
+
+    bytes4 private constant MAGIC_VALUE =
+        bytes4(keccak256("isValidSignature(bytes32,bytes)"));
 
     function nonce() public view virtual override returns (uint256) {
         return _nonce;
@@ -186,5 +195,25 @@ contract BaseAccount is BaseAccountCore, UUPSUpgradeable, Initializable {
     {
         (newImplementation);
         _onlyOwner();
+    }
+
+    function _verifyRecover(bytes32 messageHash, bytes memory signature)
+        internal
+        view
+        returns (bool)
+    {
+        return (owner == ECDSA.recover(messageHash, signature) ? true : false);
+    }
+
+    function isValidSignature(bytes32 messageHash, bytes memory signature)
+        public
+        view
+        returns (bytes4)
+    {
+        return (
+            _verifyRecover(messageHash, signature)
+                ? bytes4(0x1626ba7e)
+                : bytes4(0xffffffff)
+        );
     }
 }
