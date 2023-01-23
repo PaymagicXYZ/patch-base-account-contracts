@@ -3,6 +3,7 @@ import "@nomicfoundation/hardhat-toolbox";
 import "@nomiclabs/hardhat-etherscan";
 import "solidity-coverage";
 import "hardhat-deploy";
+import "@nomiclabs/hardhat-vyper";
 import "@nomiclabs/hardhat-ethers";
 require("dotenv").config();
 
@@ -71,7 +72,7 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      goerli: process.env.GOERLISCAN_API_KEY!,
+      goerli: process.env.ETHERSCAN_API_KEY!,
       polygon: process.env.POLYGONSCAN_API_KEY!,
       mumbai: process.env.POLYGONSCAN_API_KEY!,
       optimism: process.env.OPTIMISM_API_KEY!,
@@ -99,6 +100,9 @@ const config: HardhatUserConfig = {
         },
       },
     ],
+  },
+  vyper: {
+    version: "0.3.7",
   },
 };
 
