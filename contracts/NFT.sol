@@ -111,7 +111,7 @@ contract NFT is ERC721Pausable, Ownable {
                     abi.encodePacked(
                         '{"name": "Pushed wallet #',
                         toString(tokenId),
-                        '", "description": "Personalities is randomized NFT project generated and stored on chain. Claim your Personality.", "image": "data:image/svg+xml;base64,',
+                        '", "description": "update.", "image": "data:image/svg+xml;base64,',
                         Base64.encode(bytes(output)),
                         '"}'
                     )
