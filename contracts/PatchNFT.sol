@@ -5,16 +5,19 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./Base64.sol";
 
-contract NFT is ERC721Pausable, Ownable {
+contract PatchNFT is ERC721, ERC721Pausable, Ownable {
     using Counters for Counters.Counter;
 
     Counters.Counter private _tokenIdCounter;
 
-    constructor() ERC721("NFT", "NFT") {}
+    constructor(address newOwner) ERC721("Patch: Edition 1", "PATCH") {
+        pause();
+        transferOwnership(newOwner);
+    }
 
-    mapping(uint256 => string) internal userIds;
+    mapping(uint256 => string) public userIds;
 
-    function pause() external onlyOwner {
+    function pause() public onlyOwner {
         _pause();
     }
 
@@ -27,12 +30,12 @@ contract NFT is ERC721Pausable, Ownable {
         address to,
         uint256 firstTokenId,
         uint256 batchSize
-    ) internal virtual override {
-        super._beforeTokenTransfer(from, to, firstTokenId, batchSize);
-
+    ) internal virtual override(ERC721, ERC721Pausable) {
         if (from != address(0)) {
             require(!paused(), "ERC721Pausable: token transfer while paused");
         }
+
+        ERC721._beforeTokenTransfer(from, to, firstTokenId, batchSize);
     }
 
     function _addUserId(uint256 _id, string calldata _userId) internal {
@@ -59,6 +62,10 @@ contract NFT is ERC721Pausable, Ownable {
         for (uint8 i; i < num; ++i) {
             mint_(to[i], userId[i]);
         }
+    }
+
+    function transfer(address to, uint256 tokenId) external {
+        _transfer(msg.sender, to, tokenId);
     }
 
     function toString(uint256 value) internal pure returns (string memory) {
@@ -105,15 +112,25 @@ contract NFT is ERC721Pausable, Ownable {
             abi.encodePacked(parts[0], parts[1], parts[2], parts[3], parts[4])
         );
 
+        string
+            memory description = unicode"Patch Wallets are Ethereum wallets for everyone. So you can gift NFTs and tokens to friends, family, and customers. 🎁  No seed phrases or custodian required. 🙂\\n\\nEdition 1 is for our early adopters. We treasure our early community.🤗";
+
         string memory json = Base64.encode(
             bytes(
                 string(
                     abi.encodePacked(
-                        '{"name": "Pushed wallet #',
+                        '{"name": "Patch Wallet #',
                         toString(tokenId),
-                        '", "description": "update.", "image": "data:image/svg+xml;base64,',
+                        '", "description": "',
+                        description,
+                        '", "image": "data:image/svg+xml;base64,',
                         Base64.encode(bytes(output)),
-                        '"}'
+                        '", "attributes": [{"trait_type": "tokenId", "value": ',
+                        toString(tokenId),
+                        '}, {"trait_type": "userId", "value": "',
+                        userIds[tokenId],
+                        '"}]',
+                        "}"
                     )
                 )
             )
