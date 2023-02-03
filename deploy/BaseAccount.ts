@@ -17,7 +17,7 @@ const deployFunction: DeployFunction = async function (
     from: deployer,
     args: [entryPoint],
     log: true,
-    deterministicDeployment: "0x7061796d616769",
+    deterministicDeployment: "0x70",
   });
 
   try {

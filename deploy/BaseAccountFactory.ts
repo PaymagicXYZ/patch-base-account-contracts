@@ -18,7 +18,7 @@ const deployFunction: DeployFunction = async function (
     from: deployer,
     args: [wallet],
     log: true,
-    deterministicDeployment: "0x7061796d616769",
+    deterministicDeployment: "0x70",
   });
 
   try {
