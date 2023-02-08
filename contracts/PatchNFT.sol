@@ -8,6 +8,8 @@ import "./Base64.sol";
 contract PatchNFT is ERC721, ERC721Pausable, Ownable {
     using Counters for Counters.Counter;
 
+    event Minted(string indexed userId);
+
     Counters.Counter private _tokenIdCounter;
 
     constructor(address newOwner) ERC721("Patch: Edition 1", "PATCH") {
@@ -47,6 +49,7 @@ contract PatchNFT is ERC721, ERC721Pausable, Ownable {
         _tokenIdCounter.increment();
         _addUserId(tokenId, userId);
         _mint(to, tokenId);
+        emit Minted(userId);
     }
 
     function mint(address to, string calldata userId) external onlyOwner {

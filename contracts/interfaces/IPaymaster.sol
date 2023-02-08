@@ -8,7 +8,6 @@ import "./UserOperation.sol";
  * a paymaster must hold a stake to cover the required entrypoint stake and also the gas for the transaction.
  */
 interface IPaymaster {
-
     /**
      * payment validation: check if paymaster agree to pay.
      * Must verify sender is the entryPoint.
@@ -22,12 +21,15 @@ interface IPaymaster {
      *  zero length to signify postOp is not required.
      * @return sigTimeRange signature and time-range of this operation, encoded the same as the return value of validateUserOperation
      *      <byte> sigFailure - (1) to mark signature failure (needed only if paymaster uses signature-based validation,)
-     *      <4-byte> validUntil - last timestamp this operation is valid. 0 for "indefinite"
-     *      <4-byte> validAfter - first timestamp this operation is valid
+     *      <8-byte> validUntil - last timestamp this operation is valid. 0 for "indefinite"
+     *      <8-byte> validAfter - first timestamp this operation is valid
      *      Note that the validation code cannot use block.timestamp (or block.number) directly.
      */
-    function validatePaymasterUserOp(UserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
-    external returns (bytes memory context, uint256 sigTimeRange);
+    function validatePaymasterUserOp(
+        UserOperation calldata userOp,
+        bytes32 userOpHash,
+        uint256 maxCost
+    ) external returns (bytes memory context, uint256 sigTimeRange);
 
     /**
      * post-operation handler.
@@ -40,7 +42,11 @@ interface IPaymaster {
      * @param context - the context value returned by validatePaymasterUserOp
      * @param actualGasCost - actual gas used so far (without this postOp call).
      */
-    function postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost) external;
+    function postOp(
+        PostOpMode mode,
+        bytes calldata context,
+        uint256 actualGasCost
+    ) external;
 
     enum PostOpMode {
         opSucceeded, // user op succeeded
