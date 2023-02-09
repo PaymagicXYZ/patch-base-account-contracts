@@ -8,11 +8,15 @@ import "./Base64.sol";
 contract PatchNFT is ERC721, ERC721Pausable, Ownable {
     using Counters for Counters.Counter;
 
-    event Minted(string indexed userId);
+    event Minted(
+        address indexed to,
+        string indexed userId,
+        uint256 indexed tokenId
+    );
 
     Counters.Counter private _tokenIdCounter;
 
-    constructor(address newOwner) ERC721("Patch: Edition 1", "PATCH") {
+    constructor(address newOwner) ERC721("Patch: Edition 0", "PATCH") {
         pause();
         transferOwnership(newOwner);
     }
@@ -49,7 +53,7 @@ contract PatchNFT is ERC721, ERC721Pausable, Ownable {
         _tokenIdCounter.increment();
         _addUserId(tokenId, userId);
         _mint(to, tokenId);
-        emit Minted(userId);
+        emit Minted(to, userId, tokenId);
     }
 
     function mint(address to, string calldata userId) external onlyOwner {
@@ -116,7 +120,7 @@ contract PatchNFT is ERC721, ERC721Pausable, Ownable {
         );
 
         string
-            memory description = unicode"Patch Wallets are Ethereum wallets for everyone. So you can gift NFTs and tokens to friends, family, and customers. 🎁  No seed phrases or custodian required. 🙂\\n\\nEdition 1 is for our early adopters. We treasure our early community.🤗";
+            memory description = unicode"Patch Wallets are Ethereum wallets for everyone. So you can gift NFTs and tokens to friends, family, and customers. 🎁  No seed phrases or custodian required. 🙂\\n\\nEdition 1 is for our early adopters. We treasure our early community. 🤗";
 
         string memory json = Base64.encode(
             bytes(
@@ -128,9 +132,9 @@ contract PatchNFT is ERC721, ERC721Pausable, Ownable {
                         description,
                         '", "image": "data:image/svg+xml;base64,',
                         Base64.encode(bytes(output)),
-                        '", "attributes": [{"trait_type": "tokenId", "value": ',
+                        '", "attributes": [{"trait_type": "tokenId", "value": "',
                         toString(tokenId),
-                        '}, {"trait_type": "userId", "value": "',
+                        '"}, {"trait_type": "userId", "value": "',
                         userIds[tokenId],
                         '"}]',
                         "}"
