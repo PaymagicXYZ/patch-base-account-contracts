@@ -1,30 +1,33 @@
-# lensmo-contracts
+# patch-wallets-contracts
 
-Contracts for Lensmo, including TrustedTxModifier and Identifier. The TrustedTxModifier is custom Gnosis Safe modifier that enables an owner to execute safe transactions if an EIP712 offchain signature corresponds to the owner of the modifier. In our case, this module allows Lensmo to execute transactions on behalf of users who have been authenticated through social web applications. Our Identifier is a non-transferrable EIP-4671 token used to simply link users' social accounts with their wallets.
+This repository contains the smart contracts source code for Patch Wallets. Patch Wallets is a an Ethereum protocol that leverages ERC-4337 compliant smart contracts to provide a secure and convenient way for users to transact on Ethereum and EVM-compatible networks using their email, phone number, or social media accounts in a non-custodial manner.
 
 ## Introduction
 
-Lensmo allows Ethereum signers to send ERC20 tokens to any social account; these social accounts can then claim the tokens through our a user interface after claiming the wallets their tokens have been assigned to as well as take sole ownership of their wallets or transfer their tokens to another Ethereum address.
-How is this achieved?
+Patch Wallets allows users to transact on the Ethereum network using their email, phone number, or social media accounts, eliminating the need for private keys.
 
-1. The module is generalized to allow arbitrary transactions to be executed through a Gnosis Safe if and only if the result of `ecrecover()` on an offchain signature matches the owner of the module.
-2. The module's functions are called by the user interface of Lensmo and automatically executed.
+The protocol uses a combination of off-chain components and smart contracts to provide a seamless and secure wallet experience for users. The off-chain component acts as the bridge between the user's email, phone number, or social media account and the Ethereum network while the smart contract system is responsible for creating wallet instances as well as executing transactions.
 
-The flow of the TrustedTxModifier is as such:
+The flow of Patch Wallets is as such:
 
-1. A user is authenticated through a social app that has been integrated into Lensmo.
-2. The user can then use Lensmo interface to take sole ownership of their wallets or transfer all of their tokens to an EOA of their choice.
+1. When a user authenticates themselves through email, phone number, or social media, the off-chain component calls the BaseAccountFactory, creating a counterfactual wallet on Polygon whose address is determined by the associated email, phone number, or social media account used for authentication.
+
+2. The user is then able to receive tokens or initiate transactions on any chain from their BaseAccount instance.
 
 ## Installation
 
 ```
+
 git clone
+
 ```
 
 To install with dependencies
 
 ```
+
 yarn
+
 ```
 
 ## Local development
@@ -34,5 +37,7 @@ This project uses Hardhat as the development framework.
 ### Testing
 
 ```
+
 yarn hardhat test
+
 ```
