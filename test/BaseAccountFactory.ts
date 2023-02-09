@@ -1,19 +1,15 @@
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers, deployments } from "hardhat";
+import { BaseAccountFactory, EntryPoint } from "../typechain-types";
 
 describe("BaseAccountFactory", function () {
   async function deployBaseAccountFactoryFixture() {
     const [owner] = await ethers.getSigners();
 
-    const EntryPoint = await ethers.getContractFactory("EntryPoint");
-    const entryPoint = await EntryPoint.deploy();
+    await deployments.fixture(["BaseAccountFactory"]);
 
-    const BaseAccountFactory = await ethers.getContractFactory(
+    const baseAccountFactory = await ethers.getContract<BaseAccountFactory>(
       "BaseAccountFactory"
-    );
-    const baseAccountFactory = await BaseAccountFactory.deploy(
-      entryPoint.address
     );
 
     return {
@@ -24,10 +20,8 @@ describe("BaseAccountFactory", function () {
 
   describe("createAccount", function () {
     it("Should deploy Wallet instance with the correct owner", async function () {
-      const { owner, baseAccountFactory } = await loadFixture(
-        deployBaseAccountFactoryFixture
-      );
-
+      const { owner, baseAccountFactory } =
+        await deployBaseAccountFactoryFixture();
       const receipt = await baseAccountFactory
         .createAccount(owner.address, "0xa")
         .then((tx: any) => tx.wait());
@@ -42,6 +36,29 @@ describe("BaseAccountFactory", function () {
       );
 
       expect(await baseAccountContract.owner()).to.eq(owner.address);
+
+      expect(
+        await baseAccountFactory.callStatic.createAccount(owner.address, "0xa")
+      ).to.eq(baseAccountAddress);
+    });
+    it("getAddress() should predict correct address", async function () {
+      const { owner, baseAccountFactory } =
+        await await deployBaseAccountFactoryFixture();
+
+      const predictedAddress = await baseAccountFactory.getAddress(
+        owner.address,
+        "0xa"
+      );
+
+      const receipt = await baseAccountFactory
+        .createAccount(owner.address, "0xa")
+        .then((tx: any) => tx.wait());
+
+      const baseAccountAddress = receipt.events.find(
+        ({ event }: { event: string }) => event === "BaseAccountCreated"
+      ).args[0];
+
+      expect(predictedAddress).to.eq(baseAccountAddress);
     });
   });
 });
