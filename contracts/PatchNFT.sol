@@ -23,6 +23,10 @@ contract PatchNFT is ERC721, ERC721Pausable, Ownable {
 
     mapping(uint256 => string) public userIds;
 
+    function totalSupply() public view returns (uint256) {
+        return _tokenIdCounter.current();
+    }
+
     function pause() public onlyOwner {
         _pause();
     }
