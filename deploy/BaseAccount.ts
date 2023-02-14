@@ -2,9 +2,7 @@ import { DeployFunction } from "hardhat-deploy/types";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 import { ethers, network } from "hardhat";
 
-const deployFunction: DeployFunction = async function (
-  hre: HardhatRuntimeEnvironment
-) {
+const deploy: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployments, getNamedAccounts, getChainId } = hre;
 
   const { deploy } = deployments;
@@ -17,20 +15,20 @@ const deployFunction: DeployFunction = async function (
     from: deployer,
     args: [entryPoint],
     log: true,
-    deterministicDeployment: "0x70",
+    deterministicDeployment: "0x7011",
   });
 
-  try {
-    await hre.run("verify:verify", {
-      address: address,
-      constructorArguments: [],
-    });
-  } catch (error) {
-    console.error(error);
-  }
+  // try {
+  //   await hre.run("verify:verify", {
+  //     address: address,
+  //     constructorArguments: [],
+  //   });
+  // } catch (error) {
+  //   console.error(error);
+  // }
 };
 
-export default deployFunction;
+export default deploy;
 
-deployFunction.tags = ["BaseAccount"];
-deployFunction.dependencies = ["EntryPoint"];
+deploy.tags = ["BaseAccount"];
+deploy.dependencies = ["EntryPoint"];

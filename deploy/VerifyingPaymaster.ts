@@ -9,9 +9,13 @@ const deploy: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const { deployer } = await getNamedAccounts();
 
-  const { address } = await deploy("EntryPoint", {
+  const entryPoint = (await deployments.get("EntryPoint")).address;
+
+  const owner = "0xf0d5D3FcBFc0009121A630EC8AB67e012117f40c";
+
+  const { address } = await deploy("VerifyingPaymaster", {
     from: deployer,
-    args: [],
+    args: [entryPoint, owner],
     log: true,
     deterministicDeployment: "0x7011",
   });
@@ -28,4 +32,5 @@ const deploy: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
 export default deploy;
 
-deploy.tags = ["EntryPoint"];
+deploy.tags = ["VerifyingPaymaster"];
+deploy.dependencies = ["EntryPoint"];
