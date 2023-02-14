@@ -26,7 +26,7 @@ describe("1271", function () {
     });
 
     const BaseAccountFactory = await ethers.getContractFactory(
-      "BaseAccountFactory2"
+      "BaseAccountFactory"
     );
     const baseAccountFactory = await BaseAccountFactory.deploy(
       entryPoint.address
@@ -41,11 +41,12 @@ describe("1271", function () {
     ).args[0];
 
     const baseAccountContract = await ethers.getContractAt(
-      "BaseAccount2",
+      "BaseAccount",
       baseAccountAddress
     );
 
     return {
+      baseAccountFactory,
       owner,
       beneficiary,
       entryPoint,
@@ -55,8 +56,13 @@ describe("1271", function () {
 
   describe("isValidSignature", function () {
     it("Should correctly verify valid signature", async function () {
-      const { owner, beneficiary, entryPoint, baseAccountContract } =
-        await loadFixture(deployWalletFixture);
+      const {
+        owner,
+        beneficiary,
+        entryPoint,
+        baseAccountContract,
+        baseAccountFactory,
+      } = await loadFixture(deployWalletFixture);
 
       const { chainId } = await ethers.provider.network;
 
@@ -64,15 +70,17 @@ describe("1271", function () {
         getDomainSeparator(baseAccountContract.address, chainId)
       );
 
+      //   typedData types and values
       const message = createHashMessage(["string"], ["hello"]);
 
+      //   typedData types and values ----> digest
       const digest = getDigest(baseAccountContract.address, message, chainId);
 
       const signature = owner.signMessage(digest);
 
-      console.log(
-        await baseAccountContract.isValidSignature(digest, signature)
-      );
+      expect(
+        await baseAccountContract.isValidSignature(message, signature)
+      ).to.eq("0x1626ba7e");
     });
   });
 });

@@ -10,6 +10,7 @@ import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 import "./core/BaseAccountCore.sol";
+import "./interfaces/IERC1271.sol";
 
 /**
  * minimal account.
@@ -17,7 +18,12 @@ import "./core/BaseAccountCore.sol";
  *  has execute, eth handling methods
  *  has a single signer that can send requests through the entryPoint.
  */
-contract BaseAccount is BaseAccountCore, UUPSUpgradeable, Initializable {
+contract BaseAccount is
+    BaseAccountCore,
+    UUPSUpgradeable,
+    Initializable,
+    IERC1271
+{
     using ECDSA for bytes32;
 
     //explicit sizes of nonce, to fit a single storage cell with "owner"
@@ -94,9 +100,56 @@ contract BaseAccount is BaseAccountCore, UUPSUpgradeable, Initializable {
         _initialize(anOwner);
     }
 
+    bytes32 private constant _HASHED_NAME = keccak256("Patch Wallet");
+
+    bytes32 private constant DOMAIN_SEPARATOR_SIGNATURE_HASH =
+        keccak256(
+            "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
+        );
+    // See https://eips.ethereum.org/EIPS/eip-191
+    string private constant EIP191_PREFIX_FOR_EIP712_STRUCTURED_DATA =
+        "\x19\x01";
+
+    bytes32 private _DOMAIN_SEPARATOR;
+    uint256 private DOMAIN_SEPARATOR_CHAIN_ID;
+
+    function _calculateDomainSeparator(uint256 chainId)
+        private
+        view
+        returns (bytes32)
+    {
+        return
+            keccak256(
+                abi.encode(
+                    _HASHED_NAME,
+                    DOMAIN_SEPARATOR_SIGNATURE_HASH,
+                    chainId,
+                    address(this)
+                )
+            );
+    }
+
     function _initialize(address anOwner) internal virtual {
         owner = anOwner;
+        uint256 chainId;
+        assembly {
+            chainId := chainid()
+        }
+        _DOMAIN_SEPARATOR = _calculateDomainSeparator(
+            DOMAIN_SEPARATOR_CHAIN_ID = chainId
+        );
         emit SimpleAccountInitialized(_entryPoint, owner);
+    }
+
+    function _domainSeparator() internal view returns (bytes32) {
+        uint256 chainId;
+        assembly {
+            chainId := chainid()
+        }
+        return
+            chainId == DOMAIN_SEPARATOR_CHAIN_ID
+                ? _DOMAIN_SEPARATOR
+                : _calculateDomainSeparator(chainId);
     }
 
     // Require the function call went through EntryPoint or owner
@@ -172,5 +225,32 @@ contract BaseAccount is BaseAccountCore, UUPSUpgradeable, Initializable {
     {
         (newImplementation);
         _onlyOwner();
+    }
+
+    bytes4 internal constant VALID_SIG = IERC1271.isValidSignature.selector;
+    bytes4 internal constant INVALID_SIG = bytes4(0);
+
+    function DOMAIN_SEPARATOR() external view returns (bytes32) {
+        return _domainSeparator();
+    }
+
+    function _verifySignature(bytes32 data, bytes memory signature)
+        public
+        view
+        returns (bytes4)
+    {
+        return
+            (owner != data.toEthSignedMessageHash().recover(signature))
+                ? VALID_SIG
+                : INVALID_SIG;
+    }
+
+    function isValidSignature(bytes32 data, bytes memory signature)
+        public
+        view
+        override
+        returns (bytes4)
+    {
+        return _verifySignature(data, signature);
     }
 }
