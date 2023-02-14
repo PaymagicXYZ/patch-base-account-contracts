@@ -11,7 +11,7 @@ const deploy: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const entryPoint = (await deployments.get("EntryPoint")).address;
 
-  const owner = "0xf0d5D3FcBFc0009121A630EC8AB67e012117f40c";
+  const owner = "0xd0F5181499a9967b5cF7142dF003232E94ef22cE";
 
   const { address } = await deploy("VerifyingPaymaster", {
     from: deployer,
