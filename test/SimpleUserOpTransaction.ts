@@ -268,4 +268,67 @@ describe("Wallet", function () {
       expect(await getBalance(baseAccountContract.address)).to.eq(0);
     });
   });
+  describe("Send tx multiple ERC20 and ether without paymaster", function () {
+    it("Should correctly executeBatch UserOp from Entrypoint without paymaster with 0 maxFeePerGas", async function () {
+      const {
+        owner,
+        beneficiary,
+        random,
+        testToken,
+        testToken2,
+        entryPoint,
+        baseAccountContract,
+      } = await loadFixture(deployWalletFixture);
+
+      const { data } = await testToken.populateTransaction.transfer(
+        owner.address,
+        parseEther("2.0")
+      );
+
+      const { data: data2 } = await testToken2.populateTransaction.transfer(
+        owner.address,
+        parseEther("3.0")
+      );
+
+      //base account now has 3 ether
+      await random.sendTransaction({
+        to: baseAccountContract.address,
+        value: parseEther("3.0"),
+      });
+
+      expect(await getBalance(baseAccountContract.address)).to.eq(
+        parseEther("3.0")
+      );
+
+      const txExec =
+        await baseAccountContract.populateTransaction.executeBatchValue(
+          [testToken.address, testToken2.address, owner.address],
+          [0, 0, parseEther("3.0")],
+          [data, data2, "0x"]
+        );
+
+      let op = await fillAndSign(
+        {
+          sender: baseAccountContract.address,
+          nonce: await baseAccountContract.nonce(),
+          callData: txExec.data,
+          maxFeePerGas: 0,
+        },
+        owner,
+        entryPoint
+      );
+
+      op = await fillAndSign(op, owner, entryPoint);
+
+      const entryPointBalance = await getBalance(entryPoint.address);
+
+      const tx = await entryPoint.handleOps([op], beneficiary.address);
+
+      //no change in entryPoint balance
+      expect(await getBalance(entryPoint.address)).to.eq(entryPointBalance);
+      expect(await testToken.balanceOf(baseAccountContract.address)).to.eq(0);
+      expect(await testToken2.balanceOf(baseAccountContract.address)).to.eq(0);
+      expect(await getBalance(baseAccountContract.address)).to.eq(0);
+    });
+  });
 });
