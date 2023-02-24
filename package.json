@@ -22,7 +22,7 @@
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.0",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
     "@nomicfoundation/hardhat-toolbox": "^1.0.1",
-    "@nomiclabs/hardhat-ethers": "^2.2.1",
+    "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers",
     "@nomiclabs/hardhat-etherscan": "^3.1.1",
     "@openzeppelin/contracts": "^4.8.0",
     "@pinata/sdk": "^1.1.26",
@@ -39,18 +39,20 @@
     "ethers": "^5.4.7",
     "ethers-multisend": "^2.3.0",
     "hardhat": "^2.9.9",
+    "hardhat-contract-sizer": "^2.8.0",
     "hardhat-deploy": "^0.11.13",
-    "hardhat-deploy-ethers": "^0.3.0-beta.13",
     "hardhat-gas-reporter": "^1.0.8",
     "solidity-coverage": "^0.8.2",
-    "solmate": "^6.5.0",
+    "solmate": "^6.7.0",
     "ts-node": ">=8.0.0",
     "typechain": "^8.1.0",
     "typescript": ">=4.5.0",
     "xdeployer": "^1.1.26"
   },
   "dependencies": {
+    "@account-abstraction/sdk": "^0.4.0",
     "@nomiclabs/hardhat-vyper": "^3.0.2",
-    "@openzeppelin/contracts-upgradeable": "4.2.0"
+    "@openzeppelin/contracts-upgradeable": "4.2.0",
+    "ganache": "^7.7.5"
   }
 }
