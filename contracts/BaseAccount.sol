@@ -81,9 +81,10 @@ contract BaseAccount is
     /**
      * execute a sequence of transactions
      */
-    function executeBatch(address[] calldata dest, bytes[] calldata func)
-        external
-    {
+    function executeBatch(
+        address[] calldata dest,
+        bytes[] calldata func
+    ) external {
         _requireFromEntryPointOrOwner();
         require(dest.length == func.length, "wrong array lengths");
         for (uint256 i = 0; i < dest.length; i++) {
@@ -129,11 +130,9 @@ contract BaseAccount is
     bytes32 private _DOMAIN_SEPARATOR;
     uint256 private DOMAIN_SEPARATOR_CHAIN_ID;
 
-    function _calculateDomainSeparator(uint256 chainId)
-        private
-        view
-        returns (bytes32)
-    {
+    function _calculateDomainSeparator(
+        uint256 chainId
+    ) private view returns (bytes32) {
         return
             keccak256(
                 abi.encode(
@@ -177,10 +176,9 @@ contract BaseAccount is
     }
 
     /// implement template method of BaseAccount
-    function _validateAndUpdateNonce(UserOperation calldata userOp)
-        internal
-        override
-    {
+    function _validateAndUpdateNonce(
+        UserOperation calldata userOp
+    ) internal override {
         require(_nonce++ == userOp.nonce, "account: invalid nonce");
     }
 
@@ -195,11 +193,7 @@ contract BaseAccount is
         return 0;
     }
 
-    function _call(
-        address target,
-        uint256 value,
-        bytes memory data
-    ) internal {
+    function _call(address target, uint256 value, bytes memory data) internal {
         (bool success, bytes memory result) = target.call{value: value}(data);
         if (!success) {
             assembly {
@@ -227,18 +221,16 @@ contract BaseAccount is
      * @param withdrawAddress target to send to
      * @param amount to withdraw
      */
-    function withdrawDepositTo(address payable withdrawAddress, uint256 amount)
-        public
-        onlyOwner
-    {
+    function withdrawDepositTo(
+        address payable withdrawAddress,
+        uint256 amount
+    ) public onlyOwner {
         entryPoint().withdrawTo(withdrawAddress, amount);
     }
 
-    function _authorizeUpgrade(address newImplementation)
-        internal
-        view
-        override
-    {
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal view override {
         (newImplementation);
         _onlyOwner();
     }
@@ -246,27 +238,28 @@ contract BaseAccount is
     bytes4 internal constant VALID_SIG = IERC1271.isValidSignature.selector;
     bytes4 internal constant INVALID_SIG = bytes4(0);
 
-    function DOMAIN_SEPARATOR() external view returns (bytes32) {
+    function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return _domainSeparator();
     }
 
-    function _verifySignature(bytes32 data, bytes memory signature)
-        public
-        view
-        returns (bytes4)
-    {
+    function _verifySignature(
+        bytes32 data,
+        bytes memory signature
+    ) public view returns (bytes4) {
+        bytes32 prefixedHash = keccak256(
+            abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), data)
+        );
+
         return
-            (owner != data.toEthSignedMessageHash().recover(signature))
+            (owner != prefixedHash.toEthSignedMessageHash().recover(signature))
                 ? VALID_SIG
                 : INVALID_SIG;
     }
 
-    function isValidSignature(bytes32 data, bytes memory signature)
-        public
-        view
-        override
-        returns (bytes4)
-    {
+    function isValidSignature(
+        bytes32 data,
+        bytes memory signature
+    ) public view override returns (bytes4) {
         return _verifySignature(data, signature);
     }
 }
