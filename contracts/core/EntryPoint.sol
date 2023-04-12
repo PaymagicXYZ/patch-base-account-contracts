@@ -16,8 +16,15 @@ import "../utils/Exec.sol";
 import "./StakeManager.sol";
 import "./SenderCreator.sol";
 import "./Helpers.sol";
+import "./NonceManager.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract EntryPoint is IEntryPoint, StakeManager {
+contract EntryPoint is
+    IEntryPoint,
+    StakeManager,
+    NonceManager,
+    ReentrancyGuard
+{
     using UserOperationLib for UserOperation;
 
     SenderCreator private immutable senderCreator = new SenderCreator();
@@ -101,7 +108,7 @@ contract EntryPoint is IEntryPoint, StakeManager {
     function handleOps(
         UserOperation[] calldata ops,
         address payable beneficiary
-    ) public {
+    ) public nonReentrant {
         uint256 opslen = ops.length;
         UserOpInfo[] memory opInfos = new UserOpInfo[](opslen);
 
@@ -121,6 +128,7 @@ contract EntryPoint is IEntryPoint, StakeManager {
             }
 
             uint256 collected = 0;
+            emit BeforeExecution();
 
             for (uint256 i = 0; i < opslen; i++) {
                 collected += _executeUserOp(i, ops[i], opInfos[i]);
@@ -138,7 +146,7 @@ contract EntryPoint is IEntryPoint, StakeManager {
     function handleAggregatedOps(
         UserOpsPerAggregator[] calldata opsPerAggregator,
         address payable beneficiary
-    ) public {
+    ) public nonReentrant {
         uint256 opasLen = opsPerAggregator.length;
         uint256 totalOps = 0;
         for (uint256 i = 0; i < opasLen; i++) {
@@ -163,6 +171,8 @@ contract EntryPoint is IEntryPoint, StakeManager {
         }
 
         UserOpInfo[] memory opInfos = new UserOpInfo[](totalOps);
+
+        emit BeforeExecution();
 
         uint256 opIndex = 0;
         for (uint256 a = 0; a < opasLen; a++) {
@@ -274,7 +284,7 @@ contract EntryPoint is IEntryPoint, StakeManager {
         require(msg.sender == address(this), "AA92 internal call only");
         MemoryUserOp memory mUserOp = opInfo.mUserOp;
 
-        uint256 callGasLimit = mUserOp.callGasLimit;
+        uint callGasLimit = mUserOp.callGasLimit;
         unchecked {
             // handleOps was called with gas limit too low. abort entire bundle.
             if (
@@ -315,11 +325,9 @@ contract EntryPoint is IEntryPoint, StakeManager {
      * generate a request Id - unique identifier for this request.
      * the request ID is a hash over the content of the userOp (except the signature), the entrypoint and the chainid.
      */
-    function getUserOpHash(UserOperation calldata userOp)
-        public
-        view
-        returns (bytes32)
-    {
+    function getUserOpHash(
+        UserOperation calldata userOp
+    ) public view returns (bytes32) {
         return
             keccak256(abi.encode(userOp.hash(), address(this), block.chainid));
     }
@@ -413,11 +421,9 @@ contract EntryPoint is IEntryPoint, StakeManager {
         );
     }
 
-    function _getRequiredPrefund(MemoryUserOp memory mUserOp)
-        internal
-        pure
-        returns (uint256 requiredPrefund)
-    {
+    function _getRequiredPrefund(
+        MemoryUserOp memory mUserOp
+    ) internal pure returns (uint256 requiredPrefund) {
         unchecked {
             //when using a Paymaster, the verificationGasLimit is used also to as a limit for the postOp call.
             // our security model might call postOp eventually twice
@@ -467,13 +473,13 @@ contract EntryPoint is IEntryPoint, StakeManager {
      * @param initCode the constructor code to be passed into the UserOperation.
      */
     function getSenderAddress(bytes calldata initCode) public {
-        revert SenderAddressResult(senderCreator.createSender(initCode));
+        address sender = senderCreator.createSender(initCode);
+        revert SenderAddressResult(sender);
     }
 
-    function _simulationOnlyValidations(UserOperation calldata userOp)
-        internal
-        view
-    {
+    function _simulationOnlyValidations(
+        UserOperation calldata userOp
+    ) internal view {
         // solhint-disable-next-line no-empty-blocks
         try
             this._validateSenderAndPaymaster(
@@ -652,11 +658,9 @@ contract EntryPoint is IEntryPoint, StakeManager {
         }
     }
 
-    function _getValidationData(uint256 validationData)
-        internal
-        view
-        returns (address aggregator, bool outOfTimeRange)
-    {
+    function _getValidationData(
+        uint256 validationData
+    ) internal view returns (address aggregator, bool outOfTimeRange) {
         if (validationData == 0) {
             return (address(0), false);
         }
@@ -708,6 +712,11 @@ contract EntryPoint is IEntryPoint, StakeManager {
             outOpInfo,
             requiredPreFund
         );
+
+        if (!_validateAndUpdateNonce(mUserOp.sender, mUserOp.nonce)) {
+            revert FailedOp(opIndex, "AA25 invalid account nonce");
+        }
+
         //a "marker" where account opcode validation is done and paymaster opcode validation is about to start
         // (used only by off-chain simulateValidation)
         numberMarker();
@@ -810,11 +819,9 @@ contract EntryPoint is IEntryPoint, StakeManager {
      * the gas price this UserOp agrees to pay.
      * relayer/block builder might submit the TX with higher priorityFee, but the user should not
      */
-    function getUserOpGasPrice(MemoryUserOp memory mUserOp)
-        internal
-        view
-        returns (uint256)
-    {
+    function getUserOpGasPrice(
+        MemoryUserOp memory mUserOp
+    ) internal view returns (uint256) {
         unchecked {
             uint256 maxFeePerGas = mUserOp.maxFeePerGas;
             uint256 maxPriorityFeePerGas = mUserOp.maxPriorityFeePerGas;
@@ -830,21 +837,17 @@ contract EntryPoint is IEntryPoint, StakeManager {
         return a < b ? a : b;
     }
 
-    function getOffsetOfMemoryBytes(bytes memory data)
-        internal
-        pure
-        returns (uint256 offset)
-    {
+    function getOffsetOfMemoryBytes(
+        bytes memory data
+    ) internal pure returns (uint256 offset) {
         assembly {
             offset := data
         }
     }
 
-    function getMemoryBytesFromOffset(uint256 offset)
-        internal
-        pure
-        returns (bytes memory data)
-    {
+    function getMemoryBytesFromOffset(
+        uint256 offset
+    ) internal pure returns (bytes memory data) {
         assembly {
             data := offset
         }

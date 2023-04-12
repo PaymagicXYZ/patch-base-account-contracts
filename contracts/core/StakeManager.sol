@@ -15,20 +15,16 @@ abstract contract StakeManager is IStakeManager {
     mapping(address => DepositInfo) public deposits;
 
     /// @inheritdoc IStakeManager
-    function getDepositInfo(address account)
-        public
-        view
-        returns (DepositInfo memory info)
-    {
+    function getDepositInfo(
+        address account
+    ) public view returns (DepositInfo memory info) {
         return deposits[account];
     }
 
     // internal method to return just the stake info
-    function _getStakeInfo(address addr)
-        internal
-        view
-        returns (StakeInfo memory info)
-    {
+    function _getStakeInfo(
+        address addr
+    ) internal view returns (StakeInfo memory info) {
         DepositInfo storage depositInfo = deposits[addr];
         info.stake = depositInfo.stake;
         info.unstakeDelaySec = depositInfo.unstakeDelaySec;
@@ -125,9 +121,10 @@ abstract contract StakeManager is IStakeManager {
      * @param withdrawAddress the address to send withdrawn value.
      * @param withdrawAmount the amount to withdraw.
      */
-    function withdrawTo(address payable withdrawAddress, uint256 withdrawAmount)
-        external
-    {
+    function withdrawTo(
+        address payable withdrawAddress,
+        uint256 withdrawAmount
+    ) external {
         DepositInfo storage info = deposits[msg.sender];
         require(withdrawAmount <= info.deposit, "Withdraw amount too large");
         info.deposit = uint112(info.deposit - withdrawAmount);

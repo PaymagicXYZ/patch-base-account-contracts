@@ -11,10 +11,9 @@ contract SenderCreator {
      * @param initCode the initCode value from a UserOp. contains 20 bytes of factory address, followed by calldata
      * @return sender the returned address of the created account, or zero address on failure.
      */
-    function createSender(bytes calldata initCode)
-        external
-        returns (address sender)
-    {
+    function createSender(
+        bytes calldata initCode
+    ) external returns (address sender) {
         address factory = address(bytes20(initCode[0:20]));
         bytes memory initCallData = initCode[20:];
         bool success;

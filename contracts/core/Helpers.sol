@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.12;
 
+/* solhint-disable no-inline-assembly */
+
 /**
  * returned data from validateUserOp.
  * validateUserOp returns a uint256, with is created by `_packedValidationData` and parsed by `_parseValidationData`
@@ -18,10 +20,9 @@ struct ValidationData {
 
 //extract sigFailed, validAfter, validUntil.
 // also convert zero validUntil to type(uint48).max
-function _parseValidationData(uint256 validationData)
-    pure
-    returns (ValidationData memory data)
-{
+function _parseValidationData(
+    uint validationData
+) pure returns (ValidationData memory data) {
     address aggregator = address(uint160(validationData));
     uint48 validUntil = uint48(validationData >> 160);
     if (validUntil == 0) {
@@ -60,10 +61,9 @@ function _intersectTimeRange(
  * helper to pack the return value for validateUserOp
  * @param data - the ValidationData to pack
  */
-function _packValidationData(ValidationData memory data)
-    pure
-    returns (uint256)
-{
+function _packValidationData(
+    ValidationData memory data
+) pure returns (uint256) {
     return
         uint160(data.aggregator) |
         (uint256(data.validUntil) << 160) |
@@ -85,4 +85,17 @@ function _packValidationData(
         (sigFailed ? 1 : 0) |
         (uint256(validUntil) << 160) |
         (uint256(validAfter) << (160 + 48));
+}
+
+/**
+ * keccak function over calldata.
+ * @dev copy calldata into memory, do keccak and drop allocated memory. Strangely, this is more efficient than letting solidity do it.
+ */
+function calldataKeccak(bytes calldata data) pure returns (bytes32 ret) {
+    assembly {
+        let mem := mload(0x40)
+        let len := data.length
+        calldatacopy(mem, data.offset, len)
+        ret := keccak256(mem, len)
+    }
 }

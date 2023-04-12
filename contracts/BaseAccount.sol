@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 import "./core/BaseAccountCore.sol";
-import "./interfaces/IERC1271.sol";
+import "./callback/TokenCallbackHandler.sol";
 
 /**
  * minimal account.
@@ -20,14 +20,12 @@ import "./interfaces/IERC1271.sol";
  */
 contract BaseAccount is
     BaseAccountCore,
+    TokenCallbackHandler,
     UUPSUpgradeable,
-    Initializable,
-    IERC1271
+    Initializable
 {
     using ECDSA for bytes32;
 
-    //explicit sizes of nonce, to fit a single storage cell with "owner"
-    uint96 private _nonce;
     address public owner;
 
     IEntryPoint private immutable _entryPoint;
@@ -42,10 +40,7 @@ contract BaseAccount is
         _;
     }
 
-    function nonce() public view virtual override returns (uint256) {
-        return _nonce;
-    }
-
+    /// @inheritdoc BaseAccountCore
     function entryPoint() public view virtual override returns (IEntryPoint) {
         return _entryPoint;
     }
@@ -93,22 +88,6 @@ contract BaseAccount is
     }
 
     /**
-     * execute a sequence of transactions
-     */
-    function executeBatchValue(
-        address[] calldata dest,
-        uint256[] calldata value,
-        bytes[] calldata func
-    ) external {
-        _requireFromEntryPointOrOwner();
-        require(dest.length == func.length, "wrong array lengths");
-        require(value.length == func.length, "wrong array lengths");
-        for (uint256 i = 0; i < dest.length; i++) {
-            _call(dest[i], value[i], func[i]);
-        }
-    }
-
-    /**
      * @dev The _entryPoint member is immutable, to reduce gas consumption.  To upgrade EntryPoint,
      * a new implementation of SimpleAccount must be deployed with the new EntryPoint address, then upgrading
      * the implementation by calling `upgradeTo()`
@@ -117,54 +96,9 @@ contract BaseAccount is
         _initialize(anOwner);
     }
 
-    bytes32 private constant _HASHED_NAME = keccak256("Patch Wallet");
-
-    bytes32 private constant DOMAIN_SEPARATOR_SIGNATURE_HASH =
-        keccak256(
-            "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
-        );
-    // See https://eips.ethereum.org/EIPS/eip-191
-    string private constant EIP191_PREFIX_FOR_EIP712_STRUCTURED_DATA =
-        "\x19\x01";
-
-    bytes32 private _DOMAIN_SEPARATOR;
-    uint256 private DOMAIN_SEPARATOR_CHAIN_ID;
-
-    function _calculateDomainSeparator(
-        uint256 chainId
-    ) private view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    _HASHED_NAME,
-                    DOMAIN_SEPARATOR_SIGNATURE_HASH,
-                    chainId,
-                    address(this)
-                )
-            );
-    }
-
     function _initialize(address anOwner) internal virtual {
         owner = anOwner;
-        uint256 chainId;
-        assembly {
-            chainId := chainid()
-        }
-        _DOMAIN_SEPARATOR = _calculateDomainSeparator(
-            DOMAIN_SEPARATOR_CHAIN_ID = chainId
-        );
         emit SimpleAccountInitialized(_entryPoint, owner);
-    }
-
-    function _domainSeparator() internal view returns (bytes32) {
-        uint256 chainId;
-        assembly {
-            chainId := chainid()
-        }
-        return
-            chainId == DOMAIN_SEPARATOR_CHAIN_ID
-                ? _DOMAIN_SEPARATOR
-                : _calculateDomainSeparator(chainId);
     }
 
     // Require the function call went through EntryPoint or owner
@@ -173,13 +107,6 @@ contract BaseAccount is
             msg.sender == address(entryPoint()) || msg.sender == owner,
             "account: not Owner or EntryPoint"
         );
-    }
-
-    /// implement template method of BaseAccount
-    function _validateAndUpdateNonce(
-        UserOperation calldata userOp
-    ) internal override {
-        require(_nonce++ == userOp.nonce, "account: invalid nonce");
     }
 
     /// implement template method of BaseAccount
@@ -233,33 +160,5 @@ contract BaseAccount is
     ) internal view override {
         (newImplementation);
         _onlyOwner();
-    }
-
-    bytes4 internal constant VALID_SIG = IERC1271.isValidSignature.selector;
-    bytes4 internal constant INVALID_SIG = bytes4(0);
-
-    function DOMAIN_SEPARATOR() public view returns (bytes32) {
-        return _domainSeparator();
-    }
-
-    function _verifySignature(
-        bytes32 data,
-        bytes memory signature
-    ) public view returns (bytes4) {
-        bytes32 prefixedHash = keccak256(
-            abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR(), data)
-        );
-
-        return
-            (owner != prefixedHash.toEthSignedMessageHash().recover(signature))
-                ? VALID_SIG
-                : INVALID_SIG;
-    }
-
-    function isValidSignature(
-        bytes32 data,
-        bytes memory signature
-    ) public view override returns (bytes4) {
-        return _verifySignature(data, signature);
     }
 }
