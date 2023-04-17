@@ -7,7 +7,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { parseEther, hexConcat, arrayify } from "ethers/lib/utils";
-import { fillAndSign, getBalance } from "../utils";
+import { fillAndSign } from "../utils";
 
 let entryPoint: EntryPoint;
 let wallet: BaseAccount;
@@ -123,15 +123,17 @@ describe("Wallet", function () {
 
       op = await fillAndSign(op, owner, entryPoint);
 
-      const baseAccountBalanceBefore = await getBalance(
+      const baseAccountBalanceBefore = await ethers.provider.getBalance(
         baseAccountContract.address
       );
 
-      expect(await getBalance(verifyingPaymaster.address)).to.eq(0);
+      expect(
+        await ethers.provider.getBalance(verifyingPaymaster.address)
+      ).to.eq(0);
 
       const tx = await entryPoint.handleOps([op], beneficiary.address);
 
-      const baseAccountBalanceAfter = await getBalance(
+      const baseAccountBalanceAfter = await ethers.provider.getBalance(
         baseAccountContract.address
       );
 
@@ -184,15 +186,17 @@ describe("Wallet", function () {
 
       op = await fillAndSign(op, owner, entryPoint);
 
-      const baseAccountBalanceBefore = await getBalance(
+      const baseAccountBalanceBefore = await ethers.provider.getBalance(
         baseAccountContract.address
       );
 
-      expect(await getBalance(verifyingPaymaster.address)).to.eq(0);
+      expect(
+        await ethers.provider.getBalance(verifyingPaymaster.address)
+      ).to.eq(0);
 
       const tx = await entryPoint.handleOps([op], beneficiary.address);
 
-      const baseAccountBalanceAfter = await getBalance(
+      const baseAccountBalanceAfter = await ethers.provider.getBalance(
         baseAccountContract.address
       );
 
@@ -231,9 +235,9 @@ describe("Wallet", function () {
         value: parseEther("3.0"),
       });
 
-      expect(await getBalance(baseAccountContract.address)).to.eq(
-        parseEther("3.0")
-      );
+      expect(
+        await ethers.provider.getBalance(baseAccountContract.address)
+      ).to.eq(parseEther("3.0"));
 
       const txExec =
         await baseAccountContract.populateTransaction.executeBatchValue(
@@ -259,13 +263,17 @@ describe("Wallet", function () {
 
       op = await fillAndSign(op, owner, entryPoint);
 
-      expect(await getBalance(verifyingPaymaster.address)).to.eq(0);
+      expect(
+        await ethers.provider.getBalance(verifyingPaymaster.address)
+      ).to.eq(0);
 
       const tx = await entryPoint.handleOps([op], beneficiary.address);
 
       expect(await testToken.balanceOf(baseAccountContract.address)).to.eq(0);
       expect(await testToken2.balanceOf(baseAccountContract.address)).to.eq(0);
-      expect(await getBalance(baseAccountContract.address)).to.eq(0);
+      expect(
+        await ethers.provider.getBalance(baseAccountContract.address)
+      ).to.eq(0);
     });
   });
   describe("Send tx multiple ERC20 and ether without paymaster", function () {
@@ -296,9 +304,9 @@ describe("Wallet", function () {
         value: parseEther("3.0"),
       });
 
-      expect(await getBalance(baseAccountContract.address)).to.eq(
-        parseEther("3.0")
-      );
+      expect(
+        await ethers.provider.getBalance(baseAccountContract.address)
+      ).to.eq(parseEther("3.0"));
 
       const txExec =
         await baseAccountContract.populateTransaction.executeBatchValue(
@@ -320,15 +328,21 @@ describe("Wallet", function () {
 
       op = await fillAndSign(op, owner, entryPoint);
 
-      const entryPointBalance = await getBalance(entryPoint.address);
+      const entryPointBalance = await ethers.provider.getBalance(
+        entryPoint.address
+      );
 
       const tx = await entryPoint.handleOps([op], beneficiary.address);
 
       //no change in entryPoint balance
-      expect(await getBalance(entryPoint.address)).to.eq(entryPointBalance);
+      expect(await ethers.provider.getBalance(entryPoint.address)).to.eq(
+        entryPointBalance
+      );
       expect(await testToken.balanceOf(baseAccountContract.address)).to.eq(0);
       expect(await testToken2.balanceOf(baseAccountContract.address)).to.eq(0);
-      expect(await getBalance(baseAccountContract.address)).to.eq(0);
+      expect(
+        await ethers.provider.getBalance(baseAccountContract.address)
+      ).to.eq(0);
     });
   });
 });

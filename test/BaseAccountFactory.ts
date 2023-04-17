@@ -1,26 +1,30 @@
 import { expect } from "chai";
-import { ethers, deployments } from "hardhat";
-import { BaseAccountFactory, EntryPoint } from "../typechain-types";
+import { ethers } from "hardhat";
 
 describe("BaseAccountFactory", function () {
   async function deployBaseAccountFactoryFixture() {
     const [owner] = await ethers.getSigners();
 
-    await deployments.fixture(["BaseAccountFactory"]);
+    const EntryPoint = await ethers.getContractFactory("EntryPoint");
+    const entryPoint = await EntryPoint.deploy();
 
-    const baseAccountFactory = await ethers.getContract<BaseAccountFactory>(
+    const BaseAccountFactory = await ethers.getContractFactory(
       "BaseAccountFactory"
+    );
+    const baseAccountFactory = await BaseAccountFactory.deploy(
+      entryPoint.address
     );
 
     return {
       owner,
+      entryPoint,
       baseAccountFactory,
     };
   }
 
   describe("createAccount", function () {
-    it("Should deploy Wallet instance with the correct owner", async function () {
-      const { owner, baseAccountFactory } =
+    it("Should deploy Wallet instance with the correct owner and entrypoint", async function () {
+      const { owner, baseAccountFactory, entryPoint } =
         await deployBaseAccountFactoryFixture();
       const receipt = await baseAccountFactory
         .createAccount(owner.address, "0xa")
@@ -36,6 +40,8 @@ describe("BaseAccountFactory", function () {
       );
 
       expect(await baseAccountContract.owner()).to.eq(owner.address);
+
+      expect(await baseAccountContract.entryPoint()).to.eq(entryPoint.address);
 
       expect(
         await baseAccountFactory.callStatic.createAccount(owner.address, "0xa")

@@ -30,7 +30,7 @@ contract BaseAccount is
     uint96 private _nonce;
     address public owner;
 
-    IEntryPoint private immutable _entryPoint;
+    IEntryPoint private _entryPoint;
 
     event SimpleAccountInitialized(
         IEntryPoint indexed entryPoint,
@@ -50,11 +50,15 @@ contract BaseAccount is
         return _entryPoint;
     }
 
+    function changeEntryPoint(IEntryPoint newEntryPoint) external {
+        _requireFromEntryPointOrOwner();
+        _entryPoint = newEntryPoint;
+    }
+
     // solhint-disable-next-line no-empty-blocks
     receive() external payable {}
 
-    constructor(IEntryPoint anEntryPoint) {
-        _entryPoint = anEntryPoint;
+    constructor() {
         _disableInitializers();
     }
 
@@ -81,9 +85,10 @@ contract BaseAccount is
     /**
      * execute a sequence of transactions
      */
-    function executeBatch(address[] calldata dest, bytes[] calldata func)
-        external
-    {
+    function executeBatch(
+        address[] calldata dest,
+        bytes[] calldata func
+    ) external {
         _requireFromEntryPointOrOwner();
         require(dest.length == func.length, "wrong array lengths");
         for (uint256 i = 0; i < dest.length; i++) {
@@ -112,8 +117,11 @@ contract BaseAccount is
      * a new implementation of SimpleAccount must be deployed with the new EntryPoint address, then upgrading
      * the implementation by calling `upgradeTo()`
      */
-    function initialize(address anOwner) public virtual initializer {
-        _initialize(anOwner);
+    function initialize(
+        address anOwner,
+        IEntryPoint entryPoint_
+    ) public virtual initializer {
+        _initialize(anOwner, entryPoint_);
     }
 
     bytes32 private constant _HASHED_NAME = keccak256("Patch Wallet");
@@ -129,11 +137,9 @@ contract BaseAccount is
     bytes32 private _DOMAIN_SEPARATOR;
     uint256 private DOMAIN_SEPARATOR_CHAIN_ID;
 
-    function _calculateDomainSeparator(uint256 chainId)
-        private
-        view
-        returns (bytes32)
-    {
+    function _calculateDomainSeparator(
+        uint256 chainId
+    ) private view returns (bytes32) {
         return
             keccak256(
                 abi.encode(
@@ -145,8 +151,12 @@ contract BaseAccount is
             );
     }
 
-    function _initialize(address anOwner) internal virtual {
+    function _initialize(
+        address anOwner,
+        IEntryPoint entryPoint_
+    ) internal virtual {
         owner = anOwner;
+        _entryPoint = entryPoint_;
         uint256 chainId;
         assembly {
             chainId := chainid()
@@ -177,10 +187,9 @@ contract BaseAccount is
     }
 
     /// implement template method of BaseAccount
-    function _validateAndUpdateNonce(UserOperation calldata userOp)
-        internal
-        override
-    {
+    function _validateAndUpdateNonce(
+        UserOperation calldata userOp
+    ) internal override {
         require(_nonce++ == userOp.nonce, "account: invalid nonce");
     }
 
@@ -195,11 +204,7 @@ contract BaseAccount is
         return 0;
     }
 
-    function _call(
-        address target,
-        uint256 value,
-        bytes memory data
-    ) internal {
+    function _call(address target, uint256 value, bytes memory data) internal {
         (bool success, bytes memory result) = target.call{value: value}(data);
         if (!success) {
             assembly {
@@ -227,18 +232,16 @@ contract BaseAccount is
      * @param withdrawAddress target to send to
      * @param amount to withdraw
      */
-    function withdrawDepositTo(address payable withdrawAddress, uint256 amount)
-        public
-        onlyOwner
-    {
+    function withdrawDepositTo(
+        address payable withdrawAddress,
+        uint256 amount
+    ) public onlyOwner {
         entryPoint().withdrawTo(withdrawAddress, amount);
     }
 
-    function _authorizeUpgrade(address newImplementation)
-        internal
-        view
-        override
-    {
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal view override {
         (newImplementation);
         _onlyOwner();
     }
@@ -250,23 +253,28 @@ contract BaseAccount is
         return _domainSeparator();
     }
 
-    function _verifySignature(bytes32 data, bytes memory signature)
-        public
-        view
-        returns (bytes4)
-    {
+    function _verifySignature(
+        bytes32 data,
+        bytes memory signature
+    ) public view returns (bytes4) {
+        bytes memory context = abi.encodePacked(
+            _domainSeparator(),
+            nonce(),
+            data
+        );
+
+        bytes32 message = keccak256(context);
+
+        bytes32 messageHash = message.toEthSignedMessageHash();
+
         return
-            (owner != data.toEthSignedMessageHash().recover(signature))
-                ? VALID_SIG
-                : INVALID_SIG;
+            (owner == messageHash.recover(signature)) ? VALID_SIG : INVALID_SIG;
     }
 
-    function isValidSignature(bytes32 data, bytes memory signature)
-        public
-        view
-        override
-        returns (bytes4)
-    {
+    function isValidSignature(
+        bytes32 data,
+        bytes memory signature
+    ) public view override returns (bytes4) {
         return _verifySignature(data, signature);
     }
 }
