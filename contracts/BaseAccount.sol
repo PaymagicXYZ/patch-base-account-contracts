@@ -12,7 +12,6 @@ import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "./core/BaseAccountCore.sol";
 import "./callback/TokenCallbackHandler.sol";
 import "./interfaces/IERC1271.sol";
-import "hardhat/console.sol";
 
 /**
  * minimal account.
@@ -49,6 +48,7 @@ contract BaseAccount is
     }
 
     function changeEntrypoint(IEntryPoint newEntryPoint) external onlyOwner {
+        _requireFromEntryPointOrOwner();
         _entryPoint = newEntryPoint;
     }
 
@@ -127,6 +127,13 @@ contract BaseAccount is
     ) internal virtual {
         owner = anOwner;
         _entryPoint = entryPoint_;
+        uint256 chainId;
+        assembly {
+            chainId := chainid()
+        }
+        _DOMAIN_SEPARATOR = _calculateDomainSeparator(
+            DOMAIN_SEPARATOR_CHAIN_ID = chainId
+        );
         emit SimpleAccountInitialized(_entryPoint, owner);
     }
 
@@ -237,26 +244,21 @@ contract BaseAccount is
     }
 
     function _verifySignature(
-        bytes32 typedDataHash,
+        bytes32 data,
         bytes memory signature
     ) public view returns (bytes4) {
-        bytes32 prefixedHash = keccak256(
-            abi.encodePacked(
-                EIP191_PREFIX_FOR_EIP712_STRUCTURED_DATA,
-                _domainSeparator(),
-                typedDataHash,
-                getNonce()
-            )
+        bytes memory context = abi.encodePacked(
+            _domainSeparator(),
+            getNonce(),
+            data
         );
 
-        console.logBytes32(prefixedHash);
+        bytes32 message = keccak256(context);
 
-        address signer = prefixedHash.recover(signature);
-        if (signer == owner) {
-            return VALID_SIG;
-        } else {
-            return INVALID_SIG;
-        }
+        bytes32 messageHash = message.toEthSignedMessageHash();
+
+        return
+            (owner == messageHash.recover(signature)) ? VALID_SIG : INVALID_SIG;
     }
 
     function isValidSignature(
