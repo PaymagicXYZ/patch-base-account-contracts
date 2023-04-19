@@ -11,6 +11,8 @@ import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
 import "./core/BaseAccountCore.sol";
 import "./callback/TokenCallbackHandler.sol";
+import "./interfaces/IERC1271.sol";
+import "hardhat/console.sol";
 
 /**
  * minimal account.
@@ -22,13 +24,14 @@ contract BaseAccount is
     BaseAccountCore,
     TokenCallbackHandler,
     UUPSUpgradeable,
-    Initializable
+    Initializable,
+    IERC1271
 {
     using ECDSA for bytes32;
 
     address public owner;
 
-    IEntryPoint private immutable _entryPoint;
+    IEntryPoint private _entryPoint;
 
     event SimpleAccountInitialized(
         IEntryPoint indexed entryPoint,
@@ -45,11 +48,14 @@ contract BaseAccount is
         return _entryPoint;
     }
 
+    function changeEntrypoint(IEntryPoint newEntryPoint) external onlyOwner {
+        _entryPoint = newEntryPoint;
+    }
+
     // solhint-disable-next-line no-empty-blocks
     receive() external payable {}
 
-    constructor(IEntryPoint anEntryPoint) {
-        _entryPoint = anEntryPoint;
+    constructor() {
         _disableInitializers();
     }
 
@@ -88,16 +94,39 @@ contract BaseAccount is
     }
 
     /**
+     * execute a sequence of transactions with value
+     */
+    function executeBatchValue(
+        address[] calldata dest,
+        uint256[] calldata value,
+        bytes[] calldata func
+    ) external {
+        _requireFromEntryPointOrOwner();
+        require(dest.length == func.length, "wrong array lengths");
+        require(value.length == func.length, "wrong array lengths");
+        for (uint256 i = 0; i < dest.length; i++) {
+            _call(dest[i], value[i], func[i]);
+        }
+    }
+
+    /**
      * @dev The _entryPoint member is immutable, to reduce gas consumption.  To upgrade EntryPoint,
      * a new implementation of SimpleAccount must be deployed with the new EntryPoint address, then upgrading
      * the implementation by calling `upgradeTo()`
      */
-    function initialize(address anOwner) public virtual initializer {
-        _initialize(anOwner);
+    function initialize(
+        address anOwner,
+        IEntryPoint entryPoint_
+    ) public virtual initializer {
+        _initialize(anOwner, entryPoint_);
     }
 
-    function _initialize(address anOwner) internal virtual {
+    function _initialize(
+        address anOwner,
+        IEntryPoint entryPoint_
+    ) internal virtual {
         owner = anOwner;
+        _entryPoint = entryPoint_;
         emit SimpleAccountInitialized(_entryPoint, owner);
     }
 
@@ -160,5 +189,80 @@ contract BaseAccount is
     ) internal view override {
         (newImplementation);
         _onlyOwner();
+    }
+
+    bytes32 private constant _HASHED_NAME = keccak256("Patch Wallet");
+
+    bytes32 private constant DOMAIN_SEPARATOR_SIGNATURE_HASH =
+        keccak256(
+            "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
+        );
+    // See https://eips.ethereum.org/EIPS/eip-191
+    string private constant EIP191_PREFIX_FOR_EIP712_STRUCTURED_DATA =
+        "\x19\x01";
+
+    bytes32 private _DOMAIN_SEPARATOR;
+    uint256 private DOMAIN_SEPARATOR_CHAIN_ID;
+
+    function _calculateDomainSeparator(
+        uint256 chainId
+    ) private view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    _HASHED_NAME,
+                    DOMAIN_SEPARATOR_SIGNATURE_HASH,
+                    chainId,
+                    address(this)
+                )
+            );
+    }
+
+    function _domainSeparator() internal view returns (bytes32) {
+        uint256 chainId;
+        assembly {
+            chainId := chainid()
+        }
+        return
+            chainId == DOMAIN_SEPARATOR_CHAIN_ID
+                ? _DOMAIN_SEPARATOR
+                : _calculateDomainSeparator(chainId);
+    }
+
+    bytes4 internal constant VALID_SIG = IERC1271.isValidSignature.selector;
+    bytes4 internal constant INVALID_SIG = bytes4(0);
+
+    function DOMAIN_SEPARATOR() external view returns (bytes32) {
+        return _domainSeparator();
+    }
+
+    function _verifySignature(
+        bytes32 typedDataHash,
+        bytes memory signature
+    ) public view returns (bytes4) {
+        bytes32 prefixedHash = keccak256(
+            abi.encodePacked(
+                EIP191_PREFIX_FOR_EIP712_STRUCTURED_DATA,
+                _domainSeparator(),
+                typedDataHash,
+                getNonce()
+            )
+        );
+
+        console.logBytes32(prefixedHash);
+
+        address signer = prefixedHash.recover(signature);
+        if (signer == owner) {
+            return VALID_SIG;
+        } else {
+            return INVALID_SIG;
+        }
+    }
+
+    function isValidSignature(
+        bytes32 data,
+        bytes memory signature
+    ) public view override returns (bytes4) {
+        return _verifySignature(data, signature);
     }
 }

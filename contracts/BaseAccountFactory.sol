@@ -14,11 +14,13 @@ import "./BaseAccount.sol";
  */
 contract BaseAccountFactory {
     BaseAccount public immutable baseAccountImpl;
+    IEntryPoint public immutable entryPoint;
 
     event BaseAccountCreated(BaseAccount indexed baseAccountImpl);
 
     constructor(IEntryPoint _entryPoint) {
-        baseAccountImpl = new BaseAccount(_entryPoint);
+        entryPoint = _entryPoint;
+        baseAccountImpl = new BaseAccount();
     }
 
     /**
@@ -27,10 +29,10 @@ contract BaseAccountFactory {
      * Note that during UserOperation execution, this method is called only if the account is not deployed.
      * This method returns an existing account address so that entryPoint.getSenderAddress() would work even after account creation
      */
-    function createAccount(address owner, uint256 salt)
-        public
-        returns (BaseAccount ret)
-    {
+    function createAccount(
+        address owner,
+        uint256 salt
+    ) public returns (BaseAccount ret) {
         address addr = getAddress(owner, salt);
         uint256 codeSize = addr.code.length;
         if (codeSize > 0) {
@@ -40,7 +42,7 @@ contract BaseAccountFactory {
             payable(
                 new ERC1967Proxy{salt: bytes32(salt)}(
                     address(baseAccountImpl),
-                    abi.encodeCall(BaseAccount.initialize, (owner))
+                    abi.encodeCall(BaseAccount.initialize, (owner, entryPoint))
                 )
             )
         );
@@ -51,11 +53,10 @@ contract BaseAccountFactory {
     /**
      * calculate the counterfactual address of this account as it would be returned by createAccount()
      */
-    function getAddress(address owner, uint256 salt)
-        public
-        view
-        returns (address)
-    {
+    function getAddress(
+        address owner,
+        uint256 salt
+    ) public view returns (address) {
         return
             Create2.computeAddress(
                 bytes32(salt),
@@ -64,7 +65,10 @@ contract BaseAccountFactory {
                         type(ERC1967Proxy).creationCode,
                         abi.encode(
                             address(baseAccountImpl),
-                            abi.encodeCall(BaseAccount.initialize, (owner))
+                            abi.encodeCall(
+                                BaseAccount.initialize,
+                                (owner, entryPoint)
+                            )
                         )
                     )
                 )
