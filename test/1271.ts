@@ -109,7 +109,7 @@ describe("1271", function () {
         await loadFixture(deployWalletFixture);
 
       const data = ethers.utils.randomBytes(32);
-      const nonce = (await baseAccountContract.getNonce()).add(1);
+      const nonce = await baseAccountContract.getNonce();
 
       // Sign the data with the owner's private key
       const message = ethers.utils.arrayify(
