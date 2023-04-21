@@ -7,4 +7,8 @@ contract TestERC20 is ERC20 {
     constructor(address recipient, uint256 amount) ERC20("TERC20", "TERC20") {
         _mint(recipient, amount);
     }
+
+    function mint(address recipient, uint256 amount) public {
+        _mint(recipient, amount);
+    }
 }
