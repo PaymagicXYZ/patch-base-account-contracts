@@ -17,74 +17,107 @@ import { Create2Factory } from "../utils/Create2Factory";
 
 export const AddressZero = ethers.constants.AddressZero;
 
-export function decodeRevertReason(
-  data: string,
-  nullIfNoMatch = true
-): string | null {
-  const methodSig = data.slice(0, 10);
-  const dataParams = "0x" + data.slice(10);
-
-  if (methodSig === "0x08c379a0") {
-    const [err] = ethers.utils.defaultAbiCoder.decode(["string"], dataParams);
-    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-    return `Error(${err})`;
-  } else if (methodSig === "0x00fa072b") {
-    const [opindex, paymaster, msg] = ethers.utils.defaultAbiCoder.decode(
-      ["uint256", "address", "string"],
-      dataParams
+export function packUserOp(op: UserOperation, forSignature = true): string {
+  if (forSignature) {
+    return defaultAbiCoder.encode(
+      [
+        "address",
+        "uint256",
+        "bytes32",
+        "bytes32",
+        "uint256",
+        "uint256",
+        "uint256",
+        "uint256",
+        "uint256",
+        "bytes32",
+      ],
+      [
+        op.sender,
+        op.nonce,
+        keccak256(op.initCode),
+        keccak256(op.callData),
+        op.callGasLimit,
+        op.verificationGasLimit,
+        op.preVerificationGas,
+        op.maxFeePerGas,
+        op.maxPriorityFeePerGas,
+        keccak256(op.paymasterAndData),
+      ]
     );
-    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-    return `FailedOp(${opindex}, ${
-      paymaster !== AddressZero ? paymaster : "none"
-    }, ${msg})`;
-  } else if (methodSig === "0x4e487b71") {
-    const [code] = ethers.utils.defaultAbiCoder.decode(["uint256"], dataParams);
-    return `Panic(${panicCodes[code] ?? code} + ')`;
+  } else {
+    // for the purpose of calculating gas cost encode also signature (and no keccak of bytes)
+    return defaultAbiCoder.encode(
+      [
+        "address",
+        "uint256",
+        "bytes",
+        "bytes",
+        "uint256",
+        "uint256",
+        "uint256",
+        "uint256",
+        "uint256",
+        "bytes",
+        "bytes",
+      ],
+      [
+        op.sender,
+        op.nonce,
+        op.initCode,
+        op.callData,
+        op.callGasLimit,
+        op.verificationGasLimit,
+        op.preVerificationGas,
+        op.maxFeePerGas,
+        op.maxPriorityFeePerGas,
+        op.paymasterAndData,
+        op.signature,
+      ]
+    );
   }
-  if (!nullIfNoMatch) {
-    return data;
-  }
-  return null;
 }
 
-const panicCodes: { [key: number]: string } = {
-  // from https://docs.soliditylang.org/en/v0.8.0/control-structures.html
-  0x01: "assert(false)",
-  0x11: "arithmetic overflow/underflow",
-  0x12: "divide by zero",
-  0x21: "invalid enum value",
-  0x22: "storage byte array that is incorrectly encoded",
-  0x31: ".pop() on an empty array.",
-  0x32: "array sout-of-bounds or negative index",
-  0x41: "memory overflow",
-  0x51: "zero-initialized variable of internal function type",
-};
+export function packUserOp1(op: UserOperation): string {
+  return defaultAbiCoder.encode(
+    [
+      "address", // sender
+      "uint256", // nonce
+      "bytes32", // initCode
+      "bytes32", // callData
+      "uint256", // callGasLimit
+      "uint256", // verificationGasLimit
+      "uint256", // preVerificationGas
+      "uint256", // maxFeePerGas
+      "uint256", // maxPriorityFeePerGas
+      "bytes32", // paymasterAndData
+    ],
+    [
+      op.sender,
+      op.nonce,
+      keccak256(op.initCode),
+      keccak256(op.callData),
+      op.callGasLimit,
+      op.verificationGasLimit,
+      op.preVerificationGas,
+      op.maxFeePerGas,
+      op.maxPriorityFeePerGas,
+      keccak256(op.paymasterAndData),
+    ]
+  );
+}
 
-export function rethrow(): (e: Error) => void {
-  const callerStack = new Error()
-    .stack!.replace(/Error.*\n.*at.*\n/, "")
-    .replace(/.*at.* \(internal[\s\S]*/, "");
-
-  if (arguments[0] != null) {
-    throw new Error("must use .catch(rethrow()), and NOT .catch(rethrow)");
-  }
-  return function (e: Error) {
-    const solstack = e.stack!.match(/((?:.* at .*\.sol.*\n)+)/);
-    const stack = (solstack != null ? solstack[1] : "") + callerStack;
-    // const regex = new RegExp('error=.*"data":"(.*?)"').compile()
-    const found = /error=.*?"data":"(.*?)"/.exec(e.message);
-    let message: string;
-    if (found != null) {
-      const data = found[1];
-      message =
-        decodeRevertReason(data) ?? e.message + " - " + data.slice(0, 100);
-    } else {
-      message = e.message;
-    }
-    const err = new Error(message);
-    err.stack = "Error: " + message + "\n" + stack;
-    throw err;
-  };
+export function getUserOpHash(
+  op: UserOperation,
+  entryPoint: string,
+  chainId: number
+): string {
+  const userOpHash = keccak256(packUserOp(op, true));
+  const enc = defaultAbiCoder.encode(
+    ["bytes32", "address", "uint256"],
+    [userOpHash, entryPoint, chainId]
+  );
+  return keccak256(enc);
 }
 
 export const DefaultsForUserOp: UserOperation = {
@@ -93,13 +126,38 @@ export const DefaultsForUserOp: UserOperation = {
   initCode: "0x",
   callData: "0x",
   callGasLimit: 0,
-  verificationGasLimit: 100000, // default verification gas. will add create2 cost (3200+200*length) if initCode exists
+  verificationGasLimit: 150000, // default verification gas. will add create2 cost (3200+200*length) if initCode exists
   preVerificationGas: 21000, // should also cover calldata cost.
   maxFeePerGas: 0,
   maxPriorityFeePerGas: 1e9,
   paymasterAndData: "0x",
   signature: "0x",
 };
+
+export function signUserOp(
+  op: UserOperation,
+  signer: Wallet,
+  entryPoint: string,
+  chainId: number
+): UserOperation {
+  const message = getUserOpHash(op, entryPoint, chainId);
+  const msg1 = Buffer.concat([
+    Buffer.from("\x19Ethereum Signed Message:\n32", "ascii"),
+    Buffer.from(arrayify(message)),
+  ]);
+
+  const sig = ecsign(
+    keccak256_buffer(msg1),
+    Buffer.from(arrayify(signer.privateKey))
+  );
+  // that's equivalent of:  await signer.signMessage(message);
+  // (but without "async"
+  const signedMessage1 = toRpcSig(sig.v, sig.r, sig.s);
+  return {
+    ...op,
+    signature: signedMessage1,
+  };
+}
 
 export function fillUserOpDefaults(
   op: Partial<UserOperation>,
@@ -118,16 +176,23 @@ export function fillUserOpDefaults(
   return filled;
 }
 
-export function callDataCost(data: string): number {
-  return ethers.utils
-    .arrayify(data)
-    .map((x) => (x === 0 ? 4 : 16))
-    .reduce((sum, x) => sum + x);
-}
-
-async function fillUserOp(
+// helper to fill structure:
+// - default callGasLimit to estimate call from entryPoint to account (TODO: add overhead)
+// if there is initCode:
+//  - calculate sender by eth_call the deployment code
+//  - default verificationGasLimit estimateGas of deployment code plus default 100000
+// no initCode:
+//  - update nonce from account.getNonce()
+// entryPoint param is only required to fill in "sender address when specifying "initCode"
+// nonce: assume contract as "getNonce()" function, and fill in.
+// sender - only in case of construction: fill sender from initCode.
+// callGasLimit: VERY crude estimation (by estimating call to account, and add rough entryPoint overhead
+// verificationGasLimit: hard-code default at 100k. should add "create2" cost
+export async function fillUserOp(
   op: Partial<UserOperation>,
-  entryPoint?: EntryPoint
+  entryPoint?: EntryPoint,
+  getNonceFunction = "getNonce",
+  isUndeployed = false
 ): Promise<UserOperation> {
   const op1 = { ...op };
   const provider = entryPoint?.provider;
@@ -165,14 +230,18 @@ async function fillUserOp(
     }
   }
   if (op1.nonce == null) {
-    if (provider == null)
-      throw new Error("must have entryPoint to autofill nonce");
-    const c = new Contract(
-      op.sender!,
-      ["function nonce() view returns(address)"],
-      provider
-    );
-    op1.nonce = await c.nonce().catch(rethrow());
+    if (isUndeployed) {
+      op1.nonce = 0;
+    } else {
+      if (provider == null)
+        throw new Error("must have entryPoint to autofill nonce");
+      const c = new Contract(
+        op.sender!,
+        [`function ${getNonceFunction}() view returns(uint256)`],
+        provider
+      );
+      op1.nonce = await c[getNonceFunction]().catch(rethrow());
+    }
   }
   if (op1.callGasLimit == null && op.callData != null) {
     if (provider == null)
@@ -209,26 +278,15 @@ async function fillUserOp(
   return op2;
 }
 
-export function getUserOpHash(
-  op: UserOperation,
-  entryPoint: string,
-  chainId: number
-): string {
-  const userOpHash = keccak256(packUserOp(op, true));
-  const enc = defaultAbiCoder.encode(
-    ["bytes32", "address", "uint256"],
-    [userOpHash, entryPoint, chainId]
-  );
-  return keccak256(enc);
-}
-
 export async function fillAndSign(
   op: Partial<UserOperation>,
   signer: Wallet | Signer,
-  entryPoint?: EntryPoint
+  entryPoint?: EntryPoint,
+  getNonceFunction = "getNonce",
+  isUndeployed = false
 ): Promise<UserOperation> {
   const provider = entryPoint?.provider;
-  const op2 = await fillUserOp(op, entryPoint);
+  const op2 = await fillUserOp(op, entryPoint, getNonceFunction, isUndeployed);
 
   const chainId = await provider!.getNetwork().then((net) => net.chainId);
   const message = arrayify(getUserOpHash(op2, entryPoint!.address, chainId));
@@ -239,101 +297,88 @@ export async function fillAndSign(
   };
 }
 
-function packUserOp(op: UserOperation, forSignature = true): string {
-  if (forSignature) {
-    // lighter signature scheme (must match UserOperation#pack): do encode a zero-length signature, but strip afterwards the appended zero-length value
-    const userOpType = {
-      components: [
-        { type: "address", name: "sender" },
-        { type: "uint256", name: "nonce" },
-        { type: "bytes", name: "initCode" },
-        { type: "bytes", name: "callData" },
-        { type: "uint256", name: "callGasLimit" },
-        { type: "uint256", name: "verificationGasLimit" },
-        { type: "uint256", name: "preVerificationGas" },
-        { type: "uint256", name: "maxFeePerGas" },
-        { type: "uint256", name: "maxPriorityFeePerGas" },
-        { type: "bytes", name: "paymasterAndData" },
-        { type: "bytes", name: "signature" },
-      ],
-      name: "userOp",
-      type: "tuple",
-    };
-    let encoded = defaultAbiCoder.encode(
-      [userOpType as any],
-      [{ ...op, signature: "0x" }]
-    );
-    // remove leading word (total length) and trailing word (zero-length signature)
-    encoded = "0x" + encoded.slice(66, encoded.length - 64);
-    return encoded;
-  }
-  const typevalues = [
-    { type: "address", val: op.sender },
-    { type: "uint256", val: op.nonce },
-    { type: "bytes", val: op.initCode },
-    { type: "bytes", val: op.callData },
-    { type: "uint256", val: op.callGasLimit },
-    { type: "uint256", val: op.verificationGasLimit },
-    { type: "uint256", val: op.preVerificationGas },
-    { type: "uint256", val: op.maxFeePerGas },
-    { type: "uint256", val: op.maxPriorityFeePerGas },
-    { type: "bytes", val: op.paymasterAndData },
-  ];
-  if (!forSignature) {
-    // for the purpose of calculating gas cost, also hash signature
-    typevalues.push({ type: "bytes", val: op.signature });
-  }
-  return encode(typevalues, forSignature);
+export function callDataCost(data: string): number {
+  return ethers.utils
+    .arrayify(data)
+    .map((x) => (x === 0 ? 4 : 16))
+    .reduce((sum, x) => sum + x);
 }
 
-function encode(
-  typevalues: Array<{ type: string; val: any }>,
-  forSignature: boolean
-): string {
-  const types = typevalues.map((typevalue) =>
-    typevalue.type === "bytes" && forSignature ? "bytes32" : typevalue.type
-  );
-  const values = typevalues.map((typevalue) =>
-    typevalue.type === "bytes" && forSignature
-      ? keccak256(typevalue.val)
-      : typevalue.val
-  );
-  return defaultAbiCoder.encode(types, values);
-}
+export function rethrow(): (e: Error) => void {
+  const callerStack = new Error()
+    .stack!.replace(/Error.*\n.*at.*\n/, "")
+    .replace(/.*at.* \(internal[\s\S]*/, "");
 
-function signUserOp(
-  op: UserOperation,
-  signer: Wallet,
-  entryPoint: string,
-  chainId: number
-): UserOperation {
-  const message = getUserOpHash(op, entryPoint, chainId);
-  const msg1 = Buffer.concat([
-    Buffer.from("\x19Ethereum Signed Message:\n32", "ascii"),
-    Buffer.from(arrayify(message)),
-  ]);
-
-  function getUserOpHash(
-    op: UserOperation,
-    entryPoint: string,
-    chainId: number
-  ): string {
-    const userOpHash = keccak256(packUserOp(op, true));
-    const enc = defaultAbiCoder.encode(
-      ["bytes32", "address", "uint256"],
-      [userOpHash, entryPoint, chainId]
-    );
-    return keccak256(enc);
+  if (arguments[0] != null) {
+    throw new Error("must use .catch(rethrow()), and NOT .catch(rethrow)");
   }
-
-  const sig = ecsign(
-    keccak256_buffer(msg1),
-    Buffer.from(arrayify(signer.privateKey))
-  );
-
-  const signedMessage1 = toRpcSig(sig.v, sig.r, sig.s);
-  return {
-    ...op,
-    signature: signedMessage1,
+  return function (e: Error) {
+    const solstack = e.stack!.match(/((?:.* at .*\.sol.*\n)+)/);
+    const stack = (solstack != null ? solstack[1] : "") + callerStack;
+    // const regex = new RegExp('error=.*"data":"(.*?)"').compile()
+    const found = /error=.*?"data":"(.*?)"/.exec(e.message);
+    let message: string;
+    if (found != null) {
+      const data = found[1];
+      message =
+        decodeRevertReason(data) ?? e.message + " - " + data.slice(0, 100);
+    } else {
+      message = e.message;
+    }
+    const err = new Error(message);
+    err.stack = "Error: " + message + "\n" + stack;
+    throw err;
   };
 }
+
+export function decodeRevertReason(
+  data: string,
+  nullIfNoMatch = true
+): string | null {
+  const methodSig = data.slice(0, 10);
+  const dataParams = "0x" + data.slice(10);
+
+  if (methodSig === "0x08c379a0") {
+    const [err] = ethers.utils.defaultAbiCoder.decode(["string"], dataParams);
+    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+    return `Error(${err})`;
+  } else if (methodSig === "0x00fa072b") {
+    const [opindex, paymaster, msg] = ethers.utils.defaultAbiCoder.decode(
+      ["uint256", "address", "string"],
+      dataParams
+    );
+    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+    return `FailedOp(${opindex}, ${
+      paymaster !== AddressZero ? paymaster : "none"
+    }, ${msg})`;
+  } else if (methodSig === "0x4e487b71") {
+    const [code] = ethers.utils.defaultAbiCoder.decode(["uint256"], dataParams);
+    return `Panic(${panicCodes[code] ?? code} + ')`;
+  }
+  if (!nullIfNoMatch) {
+    return data;
+  }
+  return null;
+}
+
+export function encoder(validUntil: number, validAfter: number) {
+  const validUntilBN = BigNumber.from(validUntil);
+  const validAfterBN = BigNumber.from(validAfter);
+  return ethers.utils.defaultAbiCoder.encode(
+    ["uint48", "uint48"],
+    [validUntilBN._hex, validAfterBN._hex]
+  );
+}
+
+const panicCodes: { [key: number]: string } = {
+  // from https://docs.soliditylang.org/en/v0.8.0/control-structures.html
+  0x01: "assert(false)",
+  0x11: "arithmetic overflow/underflow",
+  0x12: "divide by zero",
+  0x21: "invalid enum value",
+  0x22: "storage byte array that is incorrectly encoded",
+  0x31: ".pop() on an empty array.",
+  0x32: "array sout-of-bounds or negative index",
+  0x41: "memory overflow",
+  0x51: "zero-initialized variable of internal function type",
+};
