@@ -13,6 +13,8 @@ import "./core/BaseAccountCore.sol";
 import "./callback/TokenCallbackHandler.sol";
 import "./interfaces/IERC1271.sol";
 
+import "hardhat/console.sol";
+
 /**
  * minimal account.
  *  this is sample minimal account.
@@ -41,6 +43,38 @@ contract BaseAccount is
         _onlyOwner();
         _;
     }
+
+    // EIP712
+    bytes32 DOMAIN_SEPARATOR;
+    struct EIP712Domain {
+        string  name;
+        string  version;
+        uint256 chainId;
+        address verifyingContract;
+    }
+
+    struct Person {
+        string name;
+        address wallet;
+    }
+
+    struct Mail {
+        Person from;
+        Person to;
+        string contents;
+    }
+
+    bytes32 constant EIP712DOMAIN_TYPEHASH = keccak256(
+        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+    );
+
+    bytes32 constant PERSON_TYPEHASH = keccak256(
+        "Person(string name,address wallet)"
+    );
+
+    bytes32 constant MAIL_TYPEHASH = keccak256(
+        "Mail(Person from,Person to,string contents)Person(string name,address wallet)"
+    );
 
     /// @inheritdoc BaseAccountCore
     function entryPoint() public view virtual override returns (IEntryPoint) {
@@ -131,9 +165,13 @@ contract BaseAccount is
         assembly {
             chainId := chainid()
         }
-        _DOMAIN_SEPARATOR = _calculateDomainSeparator(
-            DOMAIN_SEPARATOR_CHAIN_ID = chainId
-        );
+        DOMAIN_SEPARATOR = hash(EIP712Domain({
+            name: "Patch Wallet",
+            version: '1',
+            chainId: chainId,
+            verifyingContract: address(this)
+        //  verifyingContract: 0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC
+        }));
         emit SimpleAccountInitialized(_entryPoint, owner);
     }
 
@@ -198,60 +236,46 @@ contract BaseAccount is
         _onlyOwner();
     }
 
-    bytes32 private constant _HASHED_NAME = keccak256("Patch Wallet");
-
-    bytes32 private constant DOMAIN_SEPARATOR_SIGNATURE_HASH =
-        keccak256(
-            "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
-        );
-    // See https://eips.ethereum.org/EIPS/eip-191
-    string private constant EIP191_PREFIX_FOR_EIP712_STRUCTURED_DATA =
-        "\x19\x01";
-
-    bytes32 private _DOMAIN_SEPARATOR;
-    uint256 private DOMAIN_SEPARATOR_CHAIN_ID;
-
-    function _calculateDomainSeparator(
-        uint256 chainId
-    ) private view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    _HASHED_NAME,
-                    DOMAIN_SEPARATOR_SIGNATURE_HASH,
-                    chainId,
-                    address(this)
-                )
-            );
+    function hash(EIP712Domain memory eip712Domain) internal pure returns (bytes32) {
+        return keccak256(abi.encode(
+            EIP712DOMAIN_TYPEHASH,
+            keccak256(bytes(eip712Domain.name)),
+            keccak256(bytes(eip712Domain.version)),
+            eip712Domain.chainId,
+            eip712Domain.verifyingContract
+        ));
     }
 
-    function _domainSeparator() internal view returns (bytes32) {
-        uint256 chainId;
-        assembly {
-            chainId := chainid()
-        }
-        return
-            chainId == DOMAIN_SEPARATOR_CHAIN_ID
-                ? _DOMAIN_SEPARATOR
-                : _calculateDomainSeparator(chainId);
+    function hash(Person memory person) internal pure returns (bytes32) {
+        return keccak256(abi.encode(
+            PERSON_TYPEHASH,
+            keccak256(bytes(person.name)),
+            person.wallet
+        ));
+    }
+
+    function hash(Mail memory mail) internal pure returns (bytes32) {
+        return keccak256(abi.encode(
+            MAIL_TYPEHASH,
+            hash(mail.from),
+            hash(mail.to),
+            keccak256(bytes(mail.contents))
+        ));
     }
 
     bytes4 internal constant VALID_SIG = IERC1271.isValidSignature.selector;
     bytes4 internal constant INVALID_SIG = bytes4(0);
-
-    function DOMAIN_SEPARATOR() external view returns (bytes32) {
-        return _domainSeparator();
-    }
 
     function _verifySignature(
         bytes32 data,
         bytes memory signature
     ) public view returns (bytes4) {
         bytes memory context = abi.encodePacked(
-            _domainSeparator(),
-            getNonce(),
+            '\x19\x01',
+            DOMAIN_SEPARATOR,
             data
         );
+        console.logBytes(context);
 
         bytes32 message = keccak256(context);
 
@@ -259,6 +283,33 @@ contract BaseAccount is
 
         return
             (owner == messageHash.recover(signature)) ? VALID_SIG : INVALID_SIG;
+    }
+
+    function verifyMail(
+        Mail memory mail,
+        bytes memory signature
+    ) public view returns (bytes4) {
+//        bytes memory context = abi.encodePacked(
+//            '\x19\x01',
+//            DOMAIN_SEPARATOR,
+//            data
+//        );
+//        console.logBytes(context);
+        bytes memory digest = abi.encodePacked(
+            "\x19\x01",
+            DOMAIN_SEPARATOR,
+            hash(mail)
+        );
+        console.logBytes(digest);
+
+        bytes32 message = keccak256(digest);
+        //console.logBytes(message);
+
+        bytes32 messageHash = message.toEthSignedMessageHash();
+        //console.logBytes(messageHash);
+
+        return
+        (owner == messageHash.recover(signature)) ? VALID_SIG : INVALID_SIG;
     }
 
     function isValidSignature(

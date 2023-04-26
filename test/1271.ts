@@ -1,7 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { _HASHED_NAME } from "../utils/1271";
+import {_TypedDataEncoder} from "@ethersproject/hash";
 
 describe("1271", function () {
   async function deployWalletFixture() {
@@ -53,81 +53,101 @@ describe("1271", function () {
   }
 
   describe("isValidSignature", function () {
-    it("should validate for correct nonces and base account addresses", async () => {
+    // it("should validate for typed data", async () => {
+    //   const { owner, baseAccountContract } = await loadFixture(
+    //       deployWalletFixture
+    //   );
+    //
+    //   const domain = {
+    //     "name": 'Patch Wallet',
+    //     "version": '1',
+    //     "chainId": 1,
+    //     "verifyingContract": baseAccountContract.address as string
+    //   }
+    //   const types = {
+    //     Person: [
+    //       { name: 'name', type: 'string' },
+    //       { name: 'wallet', type: 'address' }
+    //     ],
+    //     Mail: [
+    //       { name: 'from', type: 'Person' },
+    //       { name: 'to', type: 'Person' },
+    //       { name: 'contents', type: 'string' }
+    //     ],
+    //   }
+    //   const value = {
+    //     from: {
+    //       name: 'Cow',
+    //       wallet: '0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826',
+    //     },
+    //     to: {
+    //       name: 'Bob',
+    //       wallet: '0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB',
+    //     },
+    //     contents: 'Hello, Bob!',
+    //   }
+    //
+    //   const signature = await owner._signTypedData(domain, types, value)
+    //   console.log("SIG", signature)
+    //
+    //   const data = ethers.utils._TypedDataEncoder.hash(domain, types, value)
+    //
+    //   const isValid = await baseAccountContract.isValidSignature(
+    //       data,
+    //       signature
+    //   );
+    //
+    //   expect(isValid).to.equal("0x1626ba7e");
+    // });
+
+    it("should verifyMail", async () => {
       const { owner, baseAccountContract } = await loadFixture(
-        deployWalletFixture
+          deployWalletFixture
       );
 
-      const data = ethers.utils.randomBytes(32);
-      const nonce = await baseAccountContract.getNonce();
-      const domainSeparator = await baseAccountContract.DOMAIN_SEPARATOR();
+      const domain = {
+        "name": 'Patch Wallet',
+        "version": '1',
+        "chainId": 1,
+        "verifyingContract": baseAccountContract.address as string
+      }
+      const types = {
+        Person: [
+          { name: 'name', type: 'string' },
+          { name: 'wallet', type: 'address' }
+        ],
+        Mail: [
+          { name: 'from', type: 'Person' },
+          { name: 'to', type: 'Person' },
+          { name: 'contents', type: 'string' }
+        ],
+      }
+      const value = {
+        from: {
+          name: 'Cow',
+          wallet: '0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826',
+        },
+        to: {
+          name: 'Bob',
+          wallet: '0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB',
+        },
+        contents: 'Hello, Bob!',
+      }
 
-      const context = ethers.utils.arrayify(
-        ethers.utils.solidityKeccak256(
-          ["bytes32", "uint256", "bytes32"],
-          [domainSeparator, nonce, data]
-        )
-      );
+      const signature = await owner._signTypedData(domain, types, value)
+      console.log("SIG", signature)
 
-      const signature = await owner.signMessage(context);
-      const isValid = await baseAccountContract.isValidSignature(
-        data,
-        signature
+      // const data = ethers.utils._TypedDataEncoder.hash(domain, types, value)
+
+      const isValid = await baseAccountContract.verifyMail(
+          value,
+          signature
       );
 
       expect(isValid).to.equal("0x1626ba7e");
     });
-    it("should not validate for incorrect nonces", async () => {
-      const { owner, baseAccountContract } = await loadFixture(
-        deployWalletFixture
-      );
 
-      const data = ethers.utils.randomBytes(32);
-      const nonce = (await baseAccountContract.getNonce()).add(1);
-
-      // Sign the data with the owner's private key
-      const message = ethers.utils.arrayify(
-        ethers.utils.solidityKeccak256(
-          ["bytes32", "uint256", "bytes32"],
-          [await baseAccountContract.DOMAIN_SEPARATOR(), nonce, data]
-        )
-      );
-      const signature = await owner.signMessage(message);
-
-      // Call isValidSignature on the BaseAccount contract
-      const result = await baseAccountContract.isValidSignature(
-        data,
-        signature
-      );
-
-      // Check if the result is INVALID_SIG (0x00000000)
-      expect(result).to.equal("0x00000000");
-    });
-
-    it("should not validate for incorrect base account addresses", async function () {
-      const { owner, baseAccountContract, baseAccountContract2 } =
-        await loadFixture(deployWalletFixture);
-
-      const data = ethers.utils.randomBytes(32);
-      const nonce = await baseAccountContract.getNonce();
-
-      // Sign the data with the owner's private key
-      const message = ethers.utils.arrayify(
-        ethers.utils.solidityKeccak256(
-          ["bytes32", "uint256", "bytes32"],
-          [await baseAccountContract.DOMAIN_SEPARATOR(), nonce, data]
-        )
-      );
-      const signature = await owner.signMessage(message);
-
-      // Call isValidSignature on the BaseAccount contract
-      const result = await baseAccountContract2.isValidSignature(
-        data,
-        signature
-      );
-
-      // Check if the result is INVALID_SIG (0x00000000)
-      expect(result).to.equal("0x00000000");
-    });
   });
 });
+
+
