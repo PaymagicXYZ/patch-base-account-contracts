@@ -137,10 +137,11 @@ describe("1271", function () {
       const signature = await owner._signTypedData(domain, types, value)
       console.log("SIG", signature)
 
-      // const data = ethers.utils._TypedDataEncoder.hash(domain, types, value)
+      const data = ethers.utils._TypedDataEncoder.hash(domain, types, value)
+      console.log("DATA", data)
 
       const isValid = await baseAccountContract.verifyMail(
-          value,
+          data,
           signature
       );
 

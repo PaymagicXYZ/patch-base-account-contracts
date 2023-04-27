@@ -286,28 +286,30 @@ contract BaseAccount is
     }
 
     function verifyMail(
-        Mail memory mail,
+        bytes32 data,
         bytes memory signature
     ) public view returns (bytes4) {
-//        bytes memory context = abi.encodePacked(
-//            '\x19\x01',
-//            DOMAIN_SEPARATOR,
-//            data
-//        );
-//        console.logBytes(context);
-        bytes memory digest = abi.encodePacked(
-            "\x19\x01",
+        bytes memory context = abi.encodePacked(
+            '\x19\x01',
             DOMAIN_SEPARATOR,
-            hash(mail)
+            data
         );
-        console.logBytes(digest);
+        console.logBytes(context);
+//        bytes memory digest = abi.encodePacked(
+//            "\x19\x01",
+//            DOMAIN_SEPARATOR,
+//            hash(mail)
+//        );
+//        console.logBytes(digest);
 
-        bytes32 message = keccak256(digest);
-        //console.logBytes(message);
+        bytes32 message = keccak256(context);
+        console.logBytes32(message);
 
         bytes32 messageHash = message.toEthSignedMessageHash();
-        //console.logBytes(messageHash);
+        console.logBytes32(messageHash);
 
+        console.log(messageHash.recover(signature));
+        console.log(owner);
         return
         (owner == messageHash.recover(signature)) ? VALID_SIG : INVALID_SIG;
     }
