@@ -12,6 +12,7 @@ import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "./core/BaseAccountCore.sol";
 import "./callback/TokenCallbackHandler.sol";
 import "./interfaces/IERC1271.sol";
+import "hardhat/console.sol";
 
 /**
  * minimal account.
@@ -243,6 +244,22 @@ contract BaseAccount is
         return _domainSeparator();
     }
 
+    function _verifySignatureNoData(
+        bytes memory signature
+    ) public view returns (bytes4) {
+        bytes memory context = abi.encodePacked(
+            _domainSeparator(),
+            getNonce()
+        );
+
+        bytes32 message = keccak256(context);
+
+        bytes32 messageHash = message.toEthSignedMessageHash();
+
+        return
+            (owner == messageHash.recover(signature)) ? VALID_SIG : INVALID_SIG;
+    }
+
     function _verifySignature(
         bytes32 data,
         bytes memory signature
@@ -258,7 +275,7 @@ contract BaseAccount is
         bytes32 messageHash = message.toEthSignedMessageHash();
 
         return
-            (owner == messageHash.recover(signature)) ? VALID_SIG : INVALID_SIG;
+        (owner == messageHash.recover(signature)) ? VALID_SIG : INVALID_SIG;
     }
 
     function isValidSignature(
@@ -266,5 +283,11 @@ contract BaseAccount is
         bytes memory signature
     ) public view override returns (bytes4) {
         return _verifySignature(data, signature);
+    }
+
+    function isValidSignatureNoData(
+        bytes memory signature
+    ) public view returns (bytes4) {
+        return _verifySignatureNoData(signature);
     }
 }

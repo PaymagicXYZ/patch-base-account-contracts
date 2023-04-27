@@ -53,27 +53,57 @@ describe("1271", function () {
   }
 
   describe("isValidSignature", function () {
-    it("should validate for correct nonces and base account addresses", async () => {
+    it("should validate with ANY data field", async () => {
       const { owner, baseAccountContract } = await loadFixture(
-        deployWalletFixture
+          deployWalletFixture
       );
 
-      const data = ethers.utils.randomBytes(32);
+      const dataOptions: Uint8Array[] = [
+        ethers.utils.randomBytes(32),
+        ethers.utils.arrayify("0x0000000000000000000000000000000000000000000000000000000000000000"),
+        ethers.utils.arrayify("0x1010101010101010101010101010101010101010101010101010101010101010"),
+        ethers.utils.arrayify("0x9999999999999999999999999999999999999999999999999999999999999999"),
+        ethers.utils.arrayify("0xdeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"),
+        new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32])
+    ]
+
+      for (let i = 0; i < dataOptions.length;i++) {
+        const data = dataOptions[i];
+        const nonce = await baseAccountContract.getNonce();
+        const domainSeparator = await baseAccountContract.DOMAIN_SEPARATOR();
+
+        const context = ethers.utils.arrayify(
+            ethers.utils.solidityKeccak256(
+                ["bytes32", "uint256", "bytes32"],
+                [domainSeparator, nonce, data]
+            )
+        );
+
+        const signature = await owner.signMessage(context);
+        const isValid = await baseAccountContract.isValidSignature(
+            data,
+            signature
+        );
+        expect(isValid).to.equal("0x1626ba7e");
+      }
+    });
+    it("should validate WITHOUT data field", async () => {
+      const { owner, baseAccountContract } = await loadFixture(
+          deployWalletFixture
+      );
+
       const nonce = await baseAccountContract.getNonce();
       const domainSeparator = await baseAccountContract.DOMAIN_SEPARATOR();
 
       const context = ethers.utils.arrayify(
-        ethers.utils.solidityKeccak256(
-          ["bytes32", "uint256", "bytes32"],
-          [domainSeparator, nonce, data]
-        )
+          ethers.utils.solidityKeccak256(
+              ["bytes32", "uint256"],
+              [domainSeparator, nonce]
+          )
       );
 
       const signature = await owner.signMessage(context);
-      const isValid = await baseAccountContract.isValidSignature(
-        data,
-        signature
-      );
+      const isValid = await baseAccountContract.isValidSignatureNoData(signature);
 
       expect(isValid).to.equal("0x1626ba7e");
     });
@@ -103,6 +133,28 @@ describe("1271", function () {
       // Check if the result is INVALID_SIG (0x00000000)
       expect(result).to.equal("0x00000000");
     });
+    it("should not validate for incorrect nonces WITHOUT data field", async () => {
+      const { owner, baseAccountContract } = await loadFixture(
+          deployWalletFixture
+      );
+
+      const nonce = (await baseAccountContract.getNonce()).add(1);
+
+      // Sign the data with the owner's private key
+      const message = ethers.utils.arrayify(
+          ethers.utils.solidityKeccak256(
+              ["bytes32", "uint256"],
+              [await baseAccountContract.DOMAIN_SEPARATOR(), nonce]
+          )
+      );
+      const signature = await owner.signMessage(message);
+
+      // Call isValidSignature on the BaseAccount contract
+      const result = await baseAccountContract.isValidSignatureNoData(signature);
+
+      // Check if the result is INVALID_SIG (0x00000000)
+      expect(result).to.equal("0x00000000");
+    });
 
     it("should not validate for incorrect base account addresses", async function () {
       const { owner, baseAccountContract, baseAccountContract2 } =
@@ -125,6 +177,27 @@ describe("1271", function () {
         data,
         signature
       );
+
+      // Check if the result is INVALID_SIG (0x00000000)
+      expect(result).to.equal("0x00000000");
+    });
+    it("should not validate for incorrect base account addresses WITHOUT data field", async function () {
+      const { owner, baseAccountContract, baseAccountContract2 } =
+          await loadFixture(deployWalletFixture);
+
+      const nonce = await baseAccountContract.getNonce();
+
+      // Sign the data with the owner's private key
+      const message = ethers.utils.arrayify(
+          ethers.utils.solidityKeccak256(
+              ["bytes32", "uint256"],
+              [await baseAccountContract.DOMAIN_SEPARATOR(), nonce]
+          )
+      );
+      const signature = await owner.signMessage(message);
+
+      // Call isValidSignature on the BaseAccount contract
+      const result = await baseAccountContract2.isValidSignatureNoData(signature);
 
       // Check if the result is INVALID_SIG (0x00000000)
       expect(result).to.equal("0x00000000");
