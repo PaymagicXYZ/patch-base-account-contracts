@@ -10,26 +10,16 @@ const deploy: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   const { deployer } = await getNamedAccounts();
 
-  const entryPoint = (await deployments.get("EntryPoint")).address;
+  const entryPoint = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789";
 
   const { address } = await deploy("BaseAccountFactory", {
     from: deployer,
     args: [entryPoint],
     log: true,
-    deterministicDeployment: "0x7011",
+    deterministicDeployment: "0x9999",
   });
-
-  // try {
-  //   await hre.run("verify:verify", {
-  //     address: address,
-  //     constructorArguments: [],
-  //   });
-  // } catch (error) {
-  //   console.error(error);
-  // }
 };
 
 export default deploy;
 
 deploy.tags = ["BaseAccountFactory"];
-deploy.dependencies = ["EntryPoint"];
