@@ -1,21 +1,11 @@
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
-import { ethers, getChainId } from "hardhat";
-import { _HASHED_NAME } from "../utils/1271";
 import { Contract } from "ethers";
-import {
-  Address,
-  encodeAbiParameters,
-  encodeFunctionData,
-  keccak256,
-  verifyMessage,
-} from "viem";
-import { arrayify, toUtf8Bytes, toUtf8String } from "ethers/lib/utils";
-import exp from "constants";
+import { toUtf8Bytes } from "ethers/lib/utils";
+import { ethers, getChainId } from "hardhat";
+import { Address, encodeAbiParameters, keccak256 } from "viem";
 
 describe("1271", function () {
-  let baseAccountFactory: Contract | undefined;
-
   async function deployWalletFixture() {
     const [owner, notOwner] = await ethers.getSigners();
 
@@ -25,9 +15,9 @@ describe("1271", function () {
     const BaseAccountFactory = await ethers.getContractFactory(
       "BaseAccountFactory"
     );
-    baseAccountFactory = await BaseAccountFactory.deploy(entryPoint.address);
-
-    if (!baseAccountFactory) throw new Error("BaseAccountFactory not deployed");
+    const baseAccountFactory = await BaseAccountFactory.deploy(
+      entryPoint.address
+    );
 
     const receipt = await baseAccountFactory
       .createAccount(owner.address, "0xa")
@@ -58,10 +48,10 @@ describe("1271", function () {
     const counterFactualSalt = ethers.BigNumber.from(
       toUtf8Bytes("IAmCounterfactualSalt")
     );
-    const counterFactualAddress = await baseAccountFactory.getAddress(
+    const counterFactualAddress = (await baseAccountFactory.getAddress(
       owner.address,
       counterFactualSalt
-    );
+    )) as Address;
 
     return {
       baseAccountFactory,
@@ -79,8 +69,12 @@ describe("1271", function () {
 
   describe("isValidSignature", function () {
     it("check counterfactual address", async () => {
-      const { owner, counterFactualAddress, counterFactualSalt } =
-        await loadFixture(deployWalletFixture);
+      const {
+        owner,
+        counterFactualAddress,
+        counterFactualSalt,
+        baseAccountFactory,
+      } = await loadFixture(deployWalletFixture);
 
       // dummy data
       const data = ethers.utils.randomBytes(32);
@@ -169,8 +163,12 @@ describe("1271", function () {
     });
 
     it("check counterfactual address (bad nonce)", async () => {
-      const { owner, counterFactualAddress, counterFactualSalt } =
-        await loadFixture(deployWalletFixture);
+      const {
+        owner,
+        counterFactualAddress,
+        counterFactualSalt,
+        baseAccountFactory,
+      } = await loadFixture(deployWalletFixture);
 
       const data = ethers.utils.randomBytes(32);
       const nonce = 1;
@@ -247,8 +245,13 @@ describe("1271", function () {
     });
 
     it("check counterfactual address (bad signer)", async () => {
-      const { notOwner, owner, counterFactualAddress, counterFactualSalt } =
-        await loadFixture(deployWalletFixture);
+      const {
+        notOwner,
+        owner,
+        counterFactualAddress,
+        counterFactualSalt,
+        baseAccountFactory,
+      } = await loadFixture(deployWalletFixture);
 
       const data = ethers.utils.randomBytes(32);
       const nonce = 1;
@@ -306,7 +309,6 @@ describe("1271", function () {
       const validateOffChainContract = await ethers.getContractFactory(
         "ValidateSigOffchain"
       );
-
       var validateSigOffchainBytecode = validateOffChainContract.bytecode;
 
       const isValidSignature =
@@ -322,6 +324,47 @@ describe("1271", function () {
         }));
 
       expect(isValidSignature).to.equal(false);
+    });
+
+    it("use the same solution for factual contracts", async () => {
+      const { owner, baseAccountContract } = await loadFixture(
+        deployWalletFixture
+      );
+
+      const data = ethers.utils.randomBytes(32);
+      const nonce = await baseAccountContract.nonce();
+      const domainSeparator = await baseAccountContract.DOMAIN_SEPARATOR();
+
+      const context = ethers.utils.arrayify(
+        ethers.utils.solidityKeccak256(
+          ["bytes32", "uint256", "bytes32"],
+          [domainSeparator, nonce, data]
+        )
+      );
+
+      const signature = await owner.signMessage(context);
+
+      const validateOffChainContract = await ethers.getContractFactory(
+        "ValidateSigOffchain"
+      );
+      var validateSigOffchainBytecode = validateOffChainContract.bytecode;
+
+      // Instead of using this verification:
+      // const isValid = await baseAccountContract.isValidSignature(data, signature);
+      // We can use the same Counterfactual one, as it supports vanilla 1271 signatures
+      const isValidSignature =
+        "0x01" ===
+        (await ethers.provider.call({
+          data: ethers.utils.concat([
+            validateSigOffchainBytecode,
+            new ethers.utils.AbiCoder().encode(
+              ["address", "bytes32", "bytes"],
+              [baseAccountContract.address, data, signature]
+            ),
+          ]),
+        }));
+
+      expect(isValidSignature).to.equal(true);
     });
 
     it("should validate for correct nonces and base account addresses", async () => {
